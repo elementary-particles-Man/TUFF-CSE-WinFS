@@ -1,0 +1,22 @@
+{
+  "policy_id": "FIN-CSE-2026-001",
+  "mode": "background",
+  "targets": [
+    {
+      "volume": "D:",
+      "role": "data",
+      "cse": true
+    }
+  ],
+  "supported_filesystems": [
+    "NTFS",
+    "exFAT",
+    "FAT32",
+    "FAT"
+  ],
+  "exclude_system_volumes": true,
+  "background_priority": "lowest",
+  "meta_flush_minutes": 30,
+  "meta_flush_jitter_minutes": 7,
+  "completion_code": true
+}
