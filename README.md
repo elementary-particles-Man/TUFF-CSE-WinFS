@@ -63,6 +63,28 @@ Physical SSD/Media (Encrypted Sectors)
 -   **Key Management:** MK (Master Key), TK (Target Key), and PK (Partition Key) bundle, bound via MK-Device.
 -   **State Management:** BTM (Bitmap), JRN (Journal), and META files stored in `C:\ProgramData\TUFF-CSE-WinFS\devices\`.
 
+## CI & Validation
+
+This project uses GitHub Actions to ensure cross-platform compatibility and code quality. The CI pipeline runs on both `ubuntu-latest` and `windows-latest` for every push and pull request.
+
+### CI Coverage
+The current CI (P0.5) covers the following Rust CLI and infrastructure checks:
+-   **Formatting:** `cargo fmt --check`
+-   **Testing:** `cargo test --all-targets`
+-   **Installation Logic:** `cargo run -- install --policy examples/cse-install-policy.example.json --dry-run`
+-   **Policy Verification:** `cargo run -- verify --policy examples/cse-install-policy.example.json`
+
+*Note: CI does not perform Windows kernel driver builds, driver signing, or hardware-level operations (pnputil, raw LBA access) in this phase.*
+
+### Local Validation
+To run the same checks locally, use the following commands:
+```bash
+cargo fmt --check
+cargo test --all-targets
+cargo run -- install --policy examples/cse-install-policy.example.json --dry-run
+cargo run -- verify --policy examples/cse-install-policy.example.json
+```
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).

@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+      - 'ci/**'
+      - 'docs/**'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: rust-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Show toolchain
+        run: |
+          rustc --version
+          cargo --version
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Test
+        run: cargo test --all-targets
+
+      - name: Install dry-run
+        run: cargo run -- install --policy examples/cse-install-policy.example.json --dry-run
+
+      - name: Verify policy
+        run: cargo run -- verify --policy examples/cse-install-policy.example.json
