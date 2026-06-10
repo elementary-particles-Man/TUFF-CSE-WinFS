@@ -1,0 +1,152 @@
+# TUFF-CSE-WinFS v1 詳細設計書
+
+## 1. コンポーネント構成
+
+TUFF-CSE-WinFS v1 は以下のコンポーネントで構成する。
+
+```text
+TuffCseWinFsSetup.exe
+  導入用実行ファイル。
+  driver package配置、policy読込、ProgramData初期化、完了コード表示を担当する。
+
+tuffcsewinfs.sys
+  Windows volume側CSE driver。
+  対象volumeのread/write経路に介入し、CSE処理を実行する。
+
+tuff-cse-winfsctl.exe
+  システム部門用管理CUI。
+  seal/unseal/status等を実行する。
+
+C:\ProgramData\TUFF-CSE-WinFS\devices\
+  CSE管理情報格納領域。
+```
+
+---
+
+## 2. ディレクトリ構成
+
+```text
+C:\ProgramData\TUFF-CSE-WinFS\devices\
+  BTM\
+    {volume_hash}.btm
+  JRN\
+    {volume_hash}.jrn
+  META\
+    {volume_hash}.meta
+  KEYS\
+    {volume_hash}.sealedkey
+    {volume_hash}.pairing
+    {volume_hash}.policy
+```
+
+### 2.1 volume_hash
+
+`volume_hash` は以下の材料から生成する。
+
+```text
+volume_hash = HASH(
+  normalized_volume_guid,
+  partition_identity,
+  filesystem_type,        // NTFS, exFAT, FAT32, FAT
+  install_policy_id,
+  organization_salt
+)
+```
+
+---
+
+## 3. インストール処理
+
+### 3.1 実行フロー
+
+```text
+TuffCseWinFsSetup.exe install
+  ↓
+管理者権限確認
+  ↓
+policy読込 (システム部配布コマンド引数等)
+  ↓
+C:\ProgramData\TUFF-CSE-WinFS\devices\ 作成
+  ↓
+対象volume判定 (filesystem in { NTFS, exFAT, FAT32, FAT })
+  ↓
+...
+  ↓
+完了コード表示
+```
+
+### 3.2 対象volume判定
+
+対象volume判定条件：
+
+```text
+- filesystem in { NTFS, exFAT, FAT32, FAT }
+- drive type = local
+- not network drive
+- not boot/system/pagefile/crashdump/hibernation volume
+- not EFI/MSR/Recovery/OEM
+```
+
+---
+
+## 4. 鍵生成詳細
+
+### 4.1 材料
+
+```text
+base_material:
+  システム部門指定の導入材料 (社員は手入力せず引数から渡される)
+...
+```
+
+---
+
+## 5. BTM設計
+
+### 5.1 役割
+
+BTMは、対象volume上のどのCSE block/rangeがCSE済みかを示すbit mapである。
+
+### 5.2 単位
+
+処理単位は、対象volumeの論理セクタ長またはCSE block sizeとする。
+
+---
+
+## 6. CSE処理
+
+read/write/background sealは、ファイルシステム（NTFS/exFAT/FAT32/FAT）の内部構造に依存しない **volume range処理** として実行する。
+
+- **FS非依存部分:** ボリューム上のオフセットと長さに基づくセクタ単位のCSE封緘。
+- **FS依存部分:** ボリュームマウント時のファイルシステム種別判定、および対象外ボリュームの除外ロジック。
+
+---
+
+## 7. 性能設計 (Performance Design)
+
+TUFF-CSE-WinFS v1 の主なボトルネックは、ファイルシステム対応数やメタデータ管理ではなく、**CSE_encrypt/CSE_decryptのスループット**である。
+
+### 7.1 最適化ターゲット
+
+- CSE_encrypt / CSE_decrypt
+- BTM scan / comparison
+- Masking (XOR, rotate, byte swap, block permutation)
+
+### 7.2 Dispatch Paths
+
+- **Portable Scalar:** 全環境で動作する基準実装。
+- **SIMD (SSE2, AVX2):** CPU拡張命令を利用した並列処理。
+- **AES-NI / VAES:** ハードウェアアクセラレーションを利用可能な環境での高速化。
+
+### 7.3 ABI Policy
+
+CSE coreは将来的にC++等による高度な最適化coreへ移行しやすいよう、**C-compatible ABI境界**を意識して記述する。
+
+---
+
+## 8. 制約
+
+- CSE本文へのMAC/tag追加は行わない（サイズ不変）。
+- raw LBA anchorは使用しない。
+- パーティションリサイズは行わない。
+- 起動ボリュームは対象外。
