@@ -63,16 +63,22 @@ Physical SSD/Media (Encrypted Sectors)
 -   **Key Management:** MK (Master Key), TK (Target Key), and PK (Partition Key) bundle, bound via MK-Device.
 -   **State Management:** BTM (Bitmap), JRN (Journal), and META files stored in `C:\ProgramData\TUFF-CSE-WinFS\devices\`.
 
-## Current Phase: P1A (Driver Package Boundary)
+## Current Phase: P1B (Windows Driver Build Boundary)
 
-The project is currently in the **P1A** phase. This stage establishes the structure for the Windows kernel driver and the validation logic within the installer.
+The project is currently in the **P1B** phase. This stage introduces the Visual Studio / WDK project structure necessary to build the Windows volume filter driver.
 
-### P1A Highlights:
--   **Windows Driver Skeleton:** Located in `driver/windows/`. It is a WDM-based pass-through volume filter that establishes the I/O interception point.
--   **INF Template:** `driver/windows/tuffcsewinfs.inf` provides the installation blueprint.
--   **Driver Package Validation:** The installer (`TuffCseWinFsSetup.exe`) now includes enhanced logic to detect and validate driver packages in both "Source Skeleton" and "Distribution Ready" states.
+### P1B Highlights:
+-   **WDK Build Boundary:** Includes `TUFF-CSE-WinFS.sln`, `tuffcsewinfs.vcxproj`, and a manual build script (`build-driver.ps1`) to compile the driver.
+-   **Installer Enhancements:** The installer now detects `BuildReadySource` (INF/vcxproj/sln) and `BuiltUnsigned` (INF/SYS) states, clarifying the package's readiness for distribution.
+-   **No Built-in Signing:** P1B focuses purely on compilation. The resulting `.sys` file is unsigned. Driver signing (`tuffcsewinfs.cat`), `pnputil` deployment, and actual CSE cryptography are deferred to later phases.
 
-*Note: P1A does not yet include actual CSE encryption logic, driver builds, or hardware-level deployment (pnputil).*
+*Note: GitHub Actions primarily validates the Rust CLI. To test the WDK driver build, you must run the build script manually on a Windows host with the WDK installed, or trigger the `driver-wdk-manual.yml` workflow on GitHub.*
+
+### Local Driver Build
+To compile the pass-through driver skeleton locally on Windows (requires WDK):
+```powershell
+powershell -ExecutionPolicy Bypass -File driver/windows/build-driver.ps1 -Configuration Release -Platform x64
+```
 
 ## CI & Validation
 

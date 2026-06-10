@@ -40,10 +40,16 @@ pub fn run_install(
         let pkg = driver::validate_driver_package(path)?;
         match pkg.state {
             driver::DriverPackageState::DistributionCandidate => {
-                println!("  Driver Package: Distribution Ready (INF/SYS/CAT found).");
+                println!("  Driver Package: Distribution Ready (INF/SYS/CAT found). Pending P1B/P1C for actual installation.");
+            }
+            driver::DriverPackageState::BuiltUnsigned => {
+                println!("  Driver Package: Built Unsigned (INF/SYS found, CAT missing). Not ready for distribution.");
+            }
+            driver::DriverPackageState::BuildReadySource => {
+                println!("  Driver Package: Build Ready Source (INF/vcxproj/sln found). Acceptable for P1B.");
             }
             driver::DriverPackageState::SourceSkeleton => {
-                println!("  Driver Package: Source Skeleton (INF found, SYS/CAT missing). Acceptable for P1A.");
+                println!("  Driver Package: Source Skeleton (INF found). Acceptable for P1A.");
             }
             _ => {}
         }

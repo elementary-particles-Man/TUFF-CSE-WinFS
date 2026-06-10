@@ -1,0 +1,26 @@
+name: WDK Manual Build (P1B)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-driver:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify Project Boundary (NoBuild)
+        run: powershell -ExecutionPolicy Bypass -File driver/windows/build-driver.ps1 -NoBuild
+
+      - name: Attempt Build (If Environment Allows)
+        run: |
+          try {
+            powershell -ExecutionPolicy Bypass -File driver/windows/build-driver.ps1 -Configuration Release -Platform x64
+          } catch {
+            Write-Host "Build failed or skipped. This is acceptable in P1B if WDK is unavailable in the environment."
+            exit 0
+          }

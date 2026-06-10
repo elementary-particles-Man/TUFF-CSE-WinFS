@@ -10,6 +10,10 @@ Thumbs.db
 *.obj
 *.sys
 *.cat
+*.vcxproj.user
+/driver/windows/x64/
+/driver/windows/Debug/
+/driver/windows/Release/
 
 # Allow tracking INF files in the driver directory (P1A+)
 !driver/windows/**/*.inf

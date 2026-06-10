@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, PartialEq, Eq)]
 pub enum DriverPackageState {
     SourceSkeleton,        // INF exists, but SYS/CAT might be missing (P1A)
+    BuildReadySource,      // INF, vcxproj, sln exist (P1B)
+    BuiltUnsigned,         // INF, SYS exist, but CAT missing
     DistributionCandidate, // INF, SYS, and CAT all exist (P1B+)
     Invalid,               // No root or no INF
 }
@@ -32,12 +34,19 @@ pub fn validate_driver_package<P: AsRef<Path>>(path: P) -> Result<DriverPackage>
 
     let sys_path = root.join("tuffcsewinfs.sys");
     let cat_path = root.join("tuffcsewinfs.cat");
+    let vcxproj_path = root.join("tuffcsewinfs.vcxproj");
+    let sln_path = root.join("TUFF-CSE-WinFS.sln");
 
     let sys_exists = sys_path.exists();
     let cat_exists = cat_path.exists();
+    let build_ready = vcxproj_path.exists() && sln_path.exists();
 
     let state = if sys_exists && cat_exists {
         DriverPackageState::DistributionCandidate
+    } else if sys_exists {
+        DriverPackageState::BuiltUnsigned
+    } else if build_ready {
+        DriverPackageState::BuildReadySource
     } else {
         DriverPackageState::SourceSkeleton
     };

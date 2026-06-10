@@ -30,6 +30,31 @@ mod tests {
     }
 
     #[test]
+    fn test_directory_with_build_files_accepted_as_build_ready_source() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("tuffcsewinfs.inf"), "stub inf").unwrap();
+        fs::write(dir.path().join("tuffcsewinfs.vcxproj"), "stub vcxproj").unwrap();
+        fs::write(dir.path().join("TUFF-CSE-WinFS.sln"), "stub sln").unwrap();
+
+        let pkg = driver::validate_driver_package(dir.path()).unwrap();
+        assert_eq!(pkg.state, DriverPackageState::BuildReadySource);
+        assert!(pkg.sys_path.is_none());
+        assert!(pkg.cat_path.is_none());
+    }
+
+    #[test]
+    fn test_directory_with_sys_but_no_cat_accepted_as_built_unsigned() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("tuffcsewinfs.inf"), "stub inf").unwrap();
+        fs::write(dir.path().join("tuffcsewinfs.sys"), "stub sys").unwrap();
+
+        let pkg = driver::validate_driver_package(dir.path()).unwrap();
+        assert_eq!(pkg.state, DriverPackageState::BuiltUnsigned);
+        assert!(pkg.sys_path.is_some());
+        assert!(pkg.cat_path.is_none());
+    }
+
+    #[test]
     fn test_directory_with_all_files_accepted_as_distribution_candidate() {
         let dir = tempdir().unwrap();
         fs::write(dir.path().join("tuffcsewinfs.inf"), "stub inf").unwrap();
