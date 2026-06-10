@@ -63,6 +63,17 @@ Physical SSD/Media (Encrypted Sectors)
 -   **Key Management:** MK (Master Key), TK (Target Key), and PK (Partition Key) bundle, bound via MK-Device.
 -   **State Management:** BTM (Bitmap), JRN (Journal), and META files stored in `C:\ProgramData\TUFF-CSE-WinFS\devices\`.
 
+## Current Phase: P1A (Driver Package Boundary)
+
+The project is currently in the **P1A** phase. This stage establishes the structure for the Windows kernel driver and the validation logic within the installer.
+
+### P1A Highlights:
+-   **Windows Driver Skeleton:** Located in `driver/windows/`. It is a WDM-based pass-through volume filter that establishes the I/O interception point.
+-   **INF Template:** `driver/windows/tuffcsewinfs.inf` provides the installation blueprint.
+-   **Driver Package Validation:** The installer (`TuffCseWinFsSetup.exe`) now includes enhanced logic to detect and validate driver packages in both "Source Skeleton" and "Distribution Ready" states.
+
+*Note: P1A does not yet include actual CSE encryption logic, driver builds, or hardware-level deployment (pnputil).*
+
 ## CI & Validation
 
 This project uses GitHub Actions to ensure cross-platform compatibility and code quality. The CI pipeline runs on both `ubuntu-latest` and `windows-latest` for every push and pull request.

@@ -37,7 +37,17 @@ pub fn run_install(
     // 3. Check Driver Package
     let driver_pkg = if let Some(path) = driver_package_path {
         println!("Checking driver package at {:?}", path);
-        Some(driver::validate_driver_package(path)?)
+        let pkg = driver::validate_driver_package(path)?;
+        match pkg.state {
+            driver::DriverPackageState::DistributionCandidate => {
+                println!("  Driver Package: Distribution Ready (INF/SYS/CAT found).");
+            }
+            driver::DriverPackageState::SourceSkeleton => {
+                println!("  Driver Package: Source Skeleton (INF found, SYS/CAT missing). Acceptable for P1A.");
+            }
+            _ => {}
+        }
+        Some(pkg)
     } else {
         println!("No driver package specified. Driver installation will be skipped in this phase.");
         None

@@ -21,3 +21,4 @@ hex = "0.4"
 hostname = "0.4"
 time = { version = "0.3", features = ["formatting", "macros"] }
 rand = "0.8"
+tempfile = "3"

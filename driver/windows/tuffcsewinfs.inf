@@ -1,0 +1,62 @@
+;
+; tuffcsewinfs.inf
+;
+; TUFF-CSE-WinFS v1 Driver Installation File
+; Phase: P1A (Source Skeleton)
+;
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = Volume
+ClassGuid   = {71a27cdd-812a-11d0-bec7-08002be2092f}
+Provider    = %ManufacturerName%
+CatalogFile = tuffcsewinfs.cat
+DriverVer   = 06/10/2026,0.1.0.0
+PnpLockdown = 1
+
+[DestinationDirs]
+DefaultDestDir = 12
+tuffcsewinfs_Device_CoInstaller_CopyFiles = 11
+
+; ================= Class section =====================
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+tuffcsewinfs.sys  = 1,,
+
+;*****************************************
+; Install Section
+;*****************************************
+
+[Manufacturer]
+%ManufacturerName%=Standard,NT$ARCH$
+
+[Standard.NT$ARCH$]
+%tuffcsewinfs.DeviceDesc%=tuffcsewinfs_Device, Root\tuffcsewinfs ; TODO: Hardware ID for volume filter
+
+[tuffcsewinfs_Device.NT]
+CopyFiles=Drivers_Dir
+
+[Drivers_Dir]
+tuffcsewinfs.sys
+
+;-------------- Service installation
+[tuffcsewinfs_Device.NT.Services]
+AddService = tuffcsewinfs,%SPSVCINST_ASSOCSERVICE%, tuffcsewinfs_Service_Inst
+
+; -------------- tuffcsewinfs driver install sections
+[tuffcsewinfs_Service_Inst]
+DisplayName    = %tuffcsewinfs.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\tuffcsewinfs.sys
+
+[Strings]
+SPSVCINST_ASSOCSERVICE= 0x00000002
+ManufacturerName="TUFF Project"
+DiskName = "TUFF-CSE-WinFS Installation Disk"
+tuffcsewinfs.DeviceDesc = "TUFF-CSE-WinFS v1 Volume Filter"
+tuffcsewinfs.SVCDESC = "TUFF-CSE-WinFS v1 Service"

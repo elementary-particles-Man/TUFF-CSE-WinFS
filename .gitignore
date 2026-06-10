@@ -10,4 +10,6 @@ Thumbs.db
 *.obj
 *.sys
 *.cat
-*.inf
+
+# Allow tracking INF files in the driver directory (P1A+)
+!driver/windows/**/*.inf
