@@ -1,0 +1,13 @@
+{
+  "policy_id": "FIN-CSE-WINFS-MANAGED-OPS-2026-001",
+  "allow_status": true,
+  "allow_bind": true,
+  "allow_unlock": true,
+  "allow_lock": true,
+  "allow_eject": true,
+  "allow_audit": true,
+  "allow_export": false,
+  "allow_rebind": false,
+  "allow_recover": false,
+  "audit_status_operations": true
+}

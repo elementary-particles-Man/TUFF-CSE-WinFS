@@ -63,22 +63,17 @@ Physical SSD/Media (Encrypted Sectors)
 -   **Key Management:** MK (Master Key), TK (Target Key), and PK (Partition Key) bundle, bound via MK-Device.
 -   **State Management:** BTM (Bitmap), JRN (Journal), and META files stored in `C:\ProgramData\TUFF-CSE-WinFS\devices\`.
 
-## Current Phase: P1B (Windows Driver Build Boundary)
+## Current Phase: P1C (Managed Operations Contract)
 
-The project is currently in the **P1B** phase. This stage introduces the Visual Studio / WDK project structure necessary to build the Windows volume filter driver.
+The project is currently in the **P1C** phase. This stage establishes the management and administrative boundary via the `tuff-cse-winfsctl` CLI, focusing on the state machine and policy structures that govern volume operations.
 
-### P1B Highlights:
--   **WDK Build Boundary:** Includes `TUFF-CSE-WinFS.sln`, `tuffcsewinfs.vcxproj`, and a manual build script (`build-driver.ps1`) to compile the driver.
--   **Installer Enhancements:** The installer now detects `BuildReadySource` (INF/vcxproj/sln) and `BuiltUnsigned` (INF/SYS) states, clarifying the package's readiness for distribution.
--   **No Built-in Signing:** P1B focuses purely on compilation. The resulting `.sys` file is unsigned. Driver signing (`tuffcsewinfs.cat`), `pnputil` deployment, and actual CSE cryptography are deferred to later phases.
+### P1C Highlights:
+-   **CLI Skeleton:** Implements the `tuff-cse-winfsctl` tool with `status`, `bind`, `unlock`, `lock`, `eject`, and `audit` commands.
+-   **State Transition Skeleton:** Defines transitions like `Unregistered -> BoundLocked` and `BoundLocked -> Unlocked`.
+-   **Operation Journal:** Implements a JSON Lines audit journal stored under `C:\ProgramData\TUFF-CSE-WinFS\devices\JRN\`.
+-   **Reserved Operations:** The commands `export`, `rebind`, and `recover` are reserved for future phases. Note that `export` (resealing for external transfer) and `rebind` (transferring ownership boundaries) are distinct from `unlock` and `eject`.
 
-*Note: GitHub Actions primarily validates the Rust CLI. To test the WDK driver build, you must run the build script manually on a Windows host with the WDK installed, or trigger the `driver-wdk-manual.yml` workflow on GitHub.*
-
-### Local Driver Build
-To compile the pass-through driver skeleton locally on Windows (requires WDK):
-```powershell
-powershell -ExecutionPolicy Bypass -File driver/windows/build-driver.ps1 -Configuration Release -Platform x64
-```
+*Note: P1C focuses on the management contract. It does not implement actual TPM interaction, cryptographic keys, AD/KMS/HSM integration, `pnputil` execution, or driver signing. AD integration (planned for P5) will focus on authorization, policy input, and auditing rather than raw cryptographic key material.*
 
 ## CI & Validation
 

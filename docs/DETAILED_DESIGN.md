@@ -166,6 +166,23 @@ P1Bは、P1AのSkeletonを実際にビルドするための環境定義フェー
 - **Installer Validation 拡張:** `DriverPackageState` に `BuildReadySource`（ビルド準備完了ソース）と `BuiltUnsigned`（未署名ビルド済み）を追加し、より詳細なパッケージ状態を識別する。
 - **対象外:** 本フェーズでの成果物は署名前の `.sys` ファイル生成までであり、カタログファイル (`.cat`) の生成、Microsoft署名、`pnputil` による導入、CSE暗号処理の実装はP1C以降とする。
 
+### 9.3 P1C: Managed Operations Contract
+P1Cは、ボリュームの管理状態と運用操作を定義するフェーズである。
+
+- **CLI Skeleton:** 管理用CUI `tuff-cse-winfsctl.exe` の骨格を実装する。
+- **データ構造:** `OperationKind`, `OperationRequest`, `OperationResult`, `VolumeBindingState`, `ManagedPolicy`, `OperationJournalRecord` を定義する。
+- **状態遷移 (State Transition):**
+    | From | Operation | To | Status |
+    | :--- | :--- | :--- | :--- |
+    | Unregistered | Bind | BoundLocked | Accepted |
+    | BoundLocked | Unlock | Unlocked | PendingCryptoPhase |
+    | Locked | Unlock | Unlocked | PendingCryptoPhase |
+    | Unlocked | Lock | Locked | PendingDriverPhase |
+    | Locked / BoundLocked | Eject | CleanRemoved | PendingDriverPhase |
+    | * | Status / Audit | same | Accepted |
+    | * | Export / Rebind / Recover | same | Reserved |
+- **Audit Journal:** 運用操作の履歴を JSON Lines 形式で `JRN\operations-{volume_hash}.jsonl` へ記録する。
+- **対象外:** TPM実鍵、復号、`export`/`rebind`/`recover` の実処理、AD/KMS/HSM連携、`pnputil`実行、ドライバ署名、実I/O変換は実装しない。
 
 ---
 
