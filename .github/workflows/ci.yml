@@ -53,7 +53,7 @@ jobs:
         run: cargo test --all-targets
 
       - name: Install dry-run
-        run: cargo run -- install --policy examples/cse-install-policy.example.json --dry-run
+        run: cargo run --bin TuffCseWinFsSetup -- install --policy examples/cse-install-policy.example.json --dry-run
 
       - name: Verify policy
-        run: cargo run -- verify --policy examples/cse-install-policy.example.json
+        run: cargo run --bin TuffCseWinFsSetup -- verify --policy examples/cse-install-policy.example.json

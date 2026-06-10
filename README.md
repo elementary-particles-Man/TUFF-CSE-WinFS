@@ -83,8 +83,8 @@ This project uses GitHub Actions to ensure cross-platform compatibility and code
 The current CI (P0.5) covers the following Rust CLI and infrastructure checks:
 -   **Formatting:** `cargo fmt --check`
 -   **Testing:** `cargo test --all-targets`
--   **Installation Logic:** `cargo run -- install --policy examples/cse-install-policy.example.json --dry-run`
--   **Policy Verification:** `cargo run -- verify --policy examples/cse-install-policy.example.json`
+-   **Installation Logic:** `cargo run --bin TuffCseWinFsSetup -- install --policy examples/cse-install-policy.example.json --dry-run`
+-   **Policy Verification:** `cargo run --bin TuffCseWinFsSetup -- verify --policy examples/cse-install-policy.example.json`
 
 *Note: CI does not perform Windows kernel driver builds, driver signing, or hardware-level operations (pnputil, raw LBA access) in this phase.*
 
@@ -93,8 +93,8 @@ To run the same checks locally, use the following commands:
 ```bash
 cargo fmt --check
 cargo test --all-targets
-cargo run -- install --policy examples/cse-install-policy.example.json --dry-run
-cargo run -- verify --policy examples/cse-install-policy.example.json
+cargo run --bin TuffCseWinFsSetup -- install --policy examples/cse-install-policy.example.json --dry-run
+cargo run --bin TuffCseWinFsSetup -- verify --policy examples/cse-install-policy.example.json
 ```
 
 ## License
