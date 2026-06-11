@@ -233,8 +233,9 @@ fn handle_audit(
                 .unwrap()
                 .as_secs(),
         };
-        
-        if let Ok(result) = operations::execute_managed_operation(request.clone(), &policy, &store) {
+
+        if let Ok(result) = operations::execute_managed_operation(request.clone(), &policy, &store)
+        {
             let record = OperationJournalRecord {
                 operation_id: result.operation_id,
                 kind: result.kind,
@@ -244,7 +245,8 @@ fn handle_audit(
                 reason: result.reason,
                 timestamp: result.timestamp,
             };
-            let _ = operation_journal::append_journal_record(store.root_path(), &dummy_hash, &record);
+            let _ =
+                operation_journal::append_journal_record(store.root_path(), &dummy_hash, &record);
         }
     }
 
