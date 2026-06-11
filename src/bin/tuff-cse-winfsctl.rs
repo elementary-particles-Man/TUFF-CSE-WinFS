@@ -32,6 +32,12 @@ enum Commands {
         volume: String,
         #[arg(short, long)]
         policy: Option<PathBuf>,
+        #[arg(long)]
+        binding_policy: Option<PathBuf>,
+        #[arg(long)]
+        plan_only: bool,
+        #[arg(long)]
+        json: bool,
     },
     /// Unlock a volume for in-place usage
     Unlock {
@@ -221,6 +227,56 @@ fn handle_audit(volume: String, policy_path: Option<PathBuf>, json: bool) -> Res
     Ok(())
 }
 
+use tuff_cse_winfs::binding::{self, BindingInputSnapshot};
+use tuff_cse_winfs::binding_policy;
+use tuff_cse_winfs::key_material;
+
+fn handle_bind_plan_only(
+    volume: String,
+    binding_policy_path: Option<PathBuf>,
+    json: bool,
+) -> Result<()> {
+    let policy = match binding_policy_path {
+        Some(p) => binding_policy::load_binding_policy(p)?,
+        None => binding_policy::default_single_host_local_policy(),
+    };
+
+    // Mock input snapshot for P2A
+    let input = BindingInputSnapshot {
+        raw_tpm_identity: Some("MOCK_TPM_EK_PUB".to_string()),
+        raw_host_id: Some("MOCK_HOST_UUID".to_string()),
+        raw_device_uuid: Some("MOCK_DEVICE_UUID".to_string()),
+        raw_volume_serial: Some("MOCK_VOL_SERIAL".to_string()),
+        raw_policy_material: Some("MOCK_POLICY_MATERIAL".to_string()),
+        installer_entropy_bytes: Some(vec![1, 2, 3, 4]),
+    };
+
+    let global_salt = "SYSTEM_UNIQUE_SALT_STUB";
+    let descriptor = binding::build_binding_descriptor(&policy, &input, &volume, global_salt)?;
+    let plan = key_material::build_key_derivation_plan(&descriptor, &policy)?;
+
+    if json {
+        let out = serde_json::json!({
+            "descriptor": descriptor,
+            "plan": plan
+        });
+        println!("{}", serde_json::to_string(&out)?);
+    } else {
+        println!("--- Binding Descriptor ---");
+        println!("Descriptor ID: {}", descriptor.descriptor_id);
+        println!("Volume: {}", descriptor.volume);
+        println!("Fingerprints:");
+        for fp in descriptor.material_fingerprints {
+            println!("  - {:?}: {}", fp.kind, fp.fingerprint);
+        }
+        println!("--- Key Derivation Plan ---");
+        println!("Plan ID: {}", plan.plan_id);
+        println!("Algorithm Suite: {}", plan.algorithm_suite);
+    }
+
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -239,7 +295,19 @@ fn main() -> Result<()> {
                 handle_operation(OperationKind::Status, volume, policy)?;
             }
         }
-        Commands::Bind { volume, policy } => handle_operation(OperationKind::Bind, volume, policy)?,
+        Commands::Bind {
+            volume,
+            policy,
+            binding_policy,
+            plan_only,
+            json,
+        } => {
+            if plan_only {
+                handle_bind_plan_only(volume, binding_policy, json)?;
+            } else {
+                handle_operation(OperationKind::Bind, volume, policy)?;
+            }
+        }
         Commands::Unlock { volume, policy } => {
             handle_operation(OperationKind::Unlock, volume, policy)?
         }

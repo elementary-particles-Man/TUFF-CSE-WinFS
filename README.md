@@ -63,17 +63,23 @@ Physical SSD/Media (Encrypted Sectors)
 -   **Key Management:** MK (Master Key), TK (Target Key), and PK (Partition Key) bundle, bound via MK-Device.
 -   **State Management:** BTM (Bitmap), JRN (Journal), and META files stored in `C:\ProgramData\TUFF-CSE-WinFS\devices\`.
 
-## Current Phase: P1C (Managed Operations Contract)
+## Current Phase: P2A (Binding Model / Key-Material Boundary)
 
-The project is currently in the **P1C** phase. This stage establishes the management and administrative boundary via the `tuff-cse-winfsctl` CLI, focusing on the state machine and policy structures that govern volume operations.
+The project is currently in the **P2A** phase. This stage establishes the logical boundary for hardware and host binding without executing actual cryptographic operations or hardware queries.
 
-### P1C Highlights:
--   **CLI Skeleton:** Implements the `tuff-cse-winfsctl` tool with `status`, `bind`, `unlock`, `lock`, `eject`, and `audit` commands.
--   **State Transition Skeleton:** Defines transitions like `Unregistered -> BoundLocked` and `BoundLocked -> Unlocked`.
--   **Operation Journal:** Implements a JSON Lines audit journal stored under `C:\ProgramData\TUFF-CSE-WinFS\devices\JRN\`.
--   **Reserved Operations:** The commands `export`, `rebind`, and `recover` are reserved for future phases. Note that `export` (resealing for external transfer) and `rebind` (transferring ownership boundaries) are distinct from `unlock` and `eject`.
+### P2A Highlights:
+-   **Binding Model:** Defines structures for `BindingPolicy`, `BindingDescriptor`, and `KeyDerivationPlan`.
+-   **Strict Separation:** `ManagedPolicy` (for operation authorization) and `BindingPolicy` (for key material constraints) are separated.
+-   **No Raw Secrets:** Ensures that raw TPM identities, host UUIDs, device serials, and generated keys are never persisted, displayed, or logged. Only salted fingerprints and descriptor IDs are retained.
+-   **`bind --plan-only`:** The `tuff-cse-winfsctl` tool now supports generating and displaying a binding descriptor and derivation plan theoretically based on a `BindingPolicy`.
 
-*Note: P1C focuses on the management contract. It does not implement actual TPM interaction, cryptographic keys, AD/KMS/HSM integration, `pnputil` execution, or driver signing. AD integration (planned for P5) will focus on authorization, policy input, and auditing rather than raw cryptographic key material.*
+*Note: P2A focuses purely on the modeling and boundary enforcement. It does not implement actual TPM interaction, Windows CNG/DPAPI calls, driver I/O interception, or runtime key generation.*
+
+### Binding Plan Example
+To view the binding descriptor and derivation plan (simulated input) locally:
+```powershell
+cargo run --bin tuff-cse-winfsctl -- bind --volume D: --binding-policy examples/binding-policy.example.json --plan-only
+```
 
 ## CI & Validation
 

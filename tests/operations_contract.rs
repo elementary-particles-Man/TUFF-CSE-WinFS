@@ -55,7 +55,7 @@ mod tests {
 
         let result =
             execute_operation(mock_request(OperationKind::Bind), &policy, &mut state).unwrap();
-        assert_eq!(result.status, OperationStatus::Accepted);
+        assert_eq!(result.status, OperationStatus::PendingBindingPhase);
         assert_eq!(result.next_state, VolumeBindingState::BoundLocked);
         assert_eq!(state.current, VolumeBindingState::BoundLocked);
     }

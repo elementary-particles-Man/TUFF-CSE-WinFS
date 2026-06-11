@@ -24,6 +24,7 @@ pub enum OperationStatus {
     Reserved,
     PendingDriverPhase,
     PendingCryptoPhase,
+    PendingBindingPhase,
     Failed,
 }
 
@@ -57,7 +58,7 @@ pub fn execute_operation(
     let previous_state = state.current;
     let mut next_state = previous_state;
     let mut status = OperationStatus::Rejected;
-    let mut reason;
+    let reason;
 
     // Policy Check
     let allowed = match request.kind {
@@ -95,8 +96,8 @@ pub fn execute_operation(
         OperationKind::Bind => {
             if previous_state == VolumeBindingState::Unregistered {
                 next_state = VolumeBindingState::BoundLocked;
-                status = OperationStatus::Accepted;
-                reason = "Volume bound".to_string();
+                status = OperationStatus::PendingBindingPhase;
+                reason = "Binding phase pending".to_string();
             } else {
                 reason = "Invalid state transition for Bind".to_string();
             }

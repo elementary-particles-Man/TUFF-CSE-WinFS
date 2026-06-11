@@ -1,0 +1,15 @@
+{
+  "policy_id": "FIN-CSE-WINFS-BINDING-2026-001",
+  "profile": "SingleHostLocalV1",
+  "require_tpm": true,
+  "require_host_identity": true,
+  "require_device_identity": true,
+  "require_volume_identity": true,
+  "require_policy_material": true,
+  "allow_installer_entropy": true,
+  "allow_dev_without_tpm": true,
+  "persist_raw_identifiers": false,
+  "allow_export": false,
+  "allow_rebind": false,
+  "allow_recover": false
+}

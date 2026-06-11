@@ -1,6 +1,9 @@
+pub mod binding;
+pub mod binding_policy;
 pub mod completion;
 pub mod driver;
 pub mod install;
+pub mod key_material;
 pub mod layout;
 pub mod managed_policy;
 pub mod operation_journal;
