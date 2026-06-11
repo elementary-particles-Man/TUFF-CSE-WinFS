@@ -1,4 +1,9 @@
+use crate::binding::{self, BindingInputSnapshot};
+use crate::binding_policy;
+use crate::binding_store::BindingStore;
+use crate::key_material;
 use crate::managed_policy::ManagedPolicy;
+use crate::runtime_session::{RuntimeSession, RuntimeSessionStatus};
 use crate::volume_state::{VolumeBindingState, VolumeRuntimeState};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -166,4 +171,94 @@ fn build_result(
             .unwrap_or_default()
             .as_secs(),
     }
+}
+
+pub fn execute_managed_operation(
+    request: OperationRequest,
+    policy: &ManagedPolicy,
+    store: &BindingStore,
+) -> Result<OperationResult> {
+    let mut state = store.load_volume_state(&request.volume)?;
+
+    // For bind/unlock, we need to ensure binding descriptor exists (except for bind which creates it)
+    if request.kind != OperationKind::Bind
+        && request.kind != OperationKind::Status
+        && request.kind != OperationKind::Audit
+    {
+        if store.load_binding_descriptor(&request.volume)?.is_none() {
+            return Ok(build_result(
+                &request,
+                OperationStatus::Rejected,
+                state.current,
+                state.current,
+                "Binding not found. Cannot perform operation.".to_string(),
+            ));
+        }
+    }
+
+    let result = execute_operation(request.clone(), policy, &mut state)?;
+
+    if result.status == OperationStatus::Rejected || result.status == OperationStatus::Reserved {
+        return Ok(result);
+    }
+
+    // Persist state updates and handle specific operation logic
+    match result.kind {
+        OperationKind::Bind => {
+            // Mock input snapshot for P2B
+            let input = BindingInputSnapshot {
+                raw_tpm_identity: Some("MOCK_TPM_EK_PUB".to_string()),
+                raw_host_id: Some("MOCK_HOST_UUID".to_string()),
+                raw_device_uuid: Some("MOCK_DEVICE_UUID".to_string()),
+                raw_volume_serial: Some("MOCK_VOL_SERIAL".to_string()),
+                raw_policy_material: Some("MOCK_POLICY_MATERIAL".to_string()),
+                installer_entropy_bytes: Some(vec![1, 2, 3, 4]),
+            };
+            let binding_policy = binding_policy::default_single_host_local_policy();
+            let global_salt = "SYSTEM_UNIQUE_SALT_STUB";
+            let descriptor = binding::build_binding_descriptor(
+                &binding_policy,
+                &input,
+                &request.volume,
+                global_salt,
+            )?;
+            let plan = key_material::build_key_derivation_plan(&descriptor, &binding_policy)?;
+
+            store.save_binding_descriptor(&descriptor)?;
+            store.save_key_derivation_plan(&request.volume, &plan)?;
+            store.save_volume_state(&request.volume, &state)?;
+        }
+        OperationKind::Unlock => {
+            let descriptor = store.load_binding_descriptor(&request.volume)?.unwrap();
+            let plan = store.load_key_derivation_plan(&request.volume)?.unwrap();
+            let session = RuntimeSession {
+                session_id: format!("SESS-{}", result.operation_id),
+                volume_hash: BindingStore::volume_hash(&request.volume),
+                descriptor_id: descriptor.descriptor_id,
+                plan_id: plan.plan_id,
+                status: RuntimeSessionStatus::UnlockedPlaceholder,
+                created_at: result.timestamp,
+                last_transition_at: result.timestamp,
+            };
+            store.save_runtime_session(&session)?;
+            store.save_volume_state(&request.volume, &state)?;
+        }
+        OperationKind::Lock => {
+            let volume_hash = BindingStore::volume_hash(&request.volume);
+            if let Some(mut session) = store.load_runtime_session(&volume_hash)? {
+                session.status = RuntimeSessionStatus::Locked;
+                session.last_transition_at = result.timestamp;
+                store.save_runtime_session(&session)?;
+            }
+            store.save_volume_state(&request.volume, &state)?;
+        }
+        OperationKind::Eject => {
+            let volume_hash = BindingStore::volume_hash(&request.volume);
+            store.clear_runtime_session(&volume_hash)?;
+            store.save_volume_state(&request.volume, &state)?;
+        }
+        _ => {}
+    }
+
+    Ok(result)
 }

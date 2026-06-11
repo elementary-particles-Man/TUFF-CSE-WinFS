@@ -1,11 +1,13 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use tuff_cse_winfs::layout;
+use tuff_cse_winfs::binding::{self, BindingInputSnapshot};
+use tuff_cse_winfs::binding_policy;
+use tuff_cse_winfs::binding_store::BindingStore;
+use tuff_cse_winfs::key_material;
 use tuff_cse_winfs::managed_policy::{self, ManagedPolicy};
 use tuff_cse_winfs::operation_journal::{self, OperationJournalRecord};
 use tuff_cse_winfs::operations::{self, OperationKind, OperationRequest};
-use tuff_cse_winfs::volume_state::VolumeRuntimeState;
 
 #[derive(Parser)]
 #[command(name = "tuff-cse-winfsctl")]
@@ -25,6 +27,8 @@ enum Commands {
         policy: Option<PathBuf>,
         #[arg(short, long)]
         json: bool,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
     },
     /// Bind a volume for management
     Bind {
@@ -38,6 +42,8 @@ enum Commands {
         plan_only: bool,
         #[arg(long)]
         json: bool,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
     },
     /// Unlock a volume for in-place usage
     Unlock {
@@ -45,6 +51,8 @@ enum Commands {
         volume: String,
         #[arg(short, long)]
         policy: Option<PathBuf>,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
     },
     /// Lock a currently used volume
     Lock {
@@ -52,6 +60,8 @@ enum Commands {
         volume: String,
         #[arg(short, long)]
         policy: Option<PathBuf>,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
     },
     /// Safely eject a volume
     Eject {
@@ -59,6 +69,8 @@ enum Commands {
         volume: String,
         #[arg(short, long)]
         policy: Option<PathBuf>,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
     },
     /// Read the operation journal for a volume
     Audit {
@@ -68,21 +80,29 @@ enum Commands {
         policy: Option<PathBuf>,
         #[arg(short, long)]
         json: bool,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
     },
     /// (Reserved) Reseal for external transfer
     Export {
         #[arg(short, long)]
         volume: String,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
     },
     /// (Reserved) Transfer ownership boundary
     Rebind {
         #[arg(short, long)]
         volume: String,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
     },
     /// (Reserved) Recover a volume
     Recover {
         #[arg(short, long)]
         volume: String,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
     },
 }
 
@@ -93,18 +113,21 @@ fn load_policy_or_default(path: Option<PathBuf>) -> Result<ManagedPolicy> {
     }
 }
 
-// In P1C, we mock the state fetching based on a dummy volume hash
-fn mock_get_state(_volume: &str) -> VolumeRuntimeState {
-    VolumeRuntimeState::new() // Always returns Unregistered for the skeleton
+fn open_store(store_root: Option<PathBuf>) -> Result<BindingStore> {
+    match store_root {
+        Some(path) => BindingStore::open_at(&path),
+        None => BindingStore::open_default(),
+    }
 }
 
 fn handle_operation(
     kind: OperationKind,
     volume: String,
     policy_path: Option<PathBuf>,
+    store_root: Option<PathBuf>,
 ) -> Result<()> {
     let policy = load_policy_or_default(policy_path)?;
-    let mut state = mock_get_state(&volume); // Skeleton state
+    let store = open_store(store_root)?;
 
     let request = OperationRequest {
         operation_id: format!(
@@ -125,7 +148,7 @@ fn handle_operation(
             .as_secs(),
     };
 
-    let result = operations::execute_operation(request.clone(), &policy, &mut state)?;
+    let result = operations::execute_managed_operation(request.clone(), &policy, &store)?;
 
     println!("Operation: {:?}", kind);
     println!("Status: {:?}", result.status);
@@ -135,10 +158,7 @@ fn handle_operation(
         result.previous_state, result.next_state
     );
 
-    // Write to journal
-    let root = layout::management_root();
-    // Use a dummy hash for the skeleton
-    let dummy_hash = format!("{:x}", md5::compute(volume.as_bytes()));
+    let dummy_hash = BindingStore::volume_hash(&volume);
 
     let record = OperationJournalRecord {
         operation_id: result.operation_id,
@@ -150,23 +170,28 @@ fn handle_operation(
         timestamp: result.timestamp,
     };
 
-    // Ignore errors for journal appending in this skeleton if layout doesn't exist
-    let _ = operation_journal::append_journal_record(&root, &dummy_hash, &record);
+    let _ = operation_journal::append_journal_record(store.root_path(), &dummy_hash, &record);
 
     Ok(())
 }
 
-fn handle_audit(volume: String, policy_path: Option<PathBuf>, json: bool) -> Result<()> {
+fn handle_audit(
+    volume: String,
+    policy_path: Option<PathBuf>,
+    json: bool,
+    store_root: Option<PathBuf>,
+) -> Result<()> {
     let policy = load_policy_or_default(policy_path)?;
+    let store = open_store(store_root)?;
+
     if !policy.allow_audit {
         println!("Audit is denied by policy.");
         return Ok(());
     }
 
-    let root = layout::management_root();
-    let dummy_hash = format!("{:x}", md5::compute(volume.as_bytes()));
+    let dummy_hash = BindingStore::volume_hash(&volume);
 
-    match operation_journal::read_journal_records(&root, &dummy_hash) {
+    match operation_journal::read_journal_records(store.root_path(), &dummy_hash) {
         Ok(records) => {
             if json {
                 for record in records {
@@ -190,7 +215,6 @@ fn handle_audit(volume: String, policy_path: Option<PathBuf>, json: bool) -> Res
         }
     }
 
-    // Record the audit operation itself
     if policy.audit_status_operations {
         let request = OperationRequest {
             operation_id: format!(
@@ -209,8 +233,8 @@ fn handle_audit(volume: String, policy_path: Option<PathBuf>, json: bool) -> Res
                 .unwrap()
                 .as_secs(),
         };
-        let mut state = mock_get_state(&volume);
-        if let Ok(result) = operations::execute_operation(request.clone(), &policy, &mut state) {
+        
+        if let Ok(result) = operations::execute_managed_operation(request.clone(), &policy, &store) {
             let record = OperationJournalRecord {
                 operation_id: result.operation_id,
                 kind: result.kind,
@@ -220,16 +244,12 @@ fn handle_audit(volume: String, policy_path: Option<PathBuf>, json: bool) -> Res
                 reason: result.reason,
                 timestamp: result.timestamp,
             };
-            let _ = operation_journal::append_journal_record(&root, &dummy_hash, &record);
+            let _ = operation_journal::append_journal_record(store.root_path(), &dummy_hash, &record);
         }
     }
 
     Ok(())
 }
-
-use tuff_cse_winfs::binding::{self, BindingInputSnapshot};
-use tuff_cse_winfs::binding_policy;
-use tuff_cse_winfs::key_material;
 
 fn handle_bind_plan_only(
     volume: String,
@@ -241,7 +261,6 @@ fn handle_bind_plan_only(
         None => binding_policy::default_single_host_local_policy(),
     };
 
-    // Mock input snapshot for P2A
     let input = BindingInputSnapshot {
         raw_tpm_identity: Some("MOCK_TPM_EK_PUB".to_string()),
         raw_host_id: Some("MOCK_HOST_UUID".to_string()),
@@ -285,6 +304,7 @@ fn main() -> Result<()> {
             volume,
             policy,
             json,
+            store_root,
         } => {
             if json {
                 println!(
@@ -292,7 +312,7 @@ fn main() -> Result<()> {
                     volume
                 );
             } else {
-                handle_operation(OperationKind::Status, volume, policy)?;
+                handle_operation(OperationKind::Status, volume, policy, store_root)?;
             }
         }
         Commands::Bind {
@@ -301,38 +321,59 @@ fn main() -> Result<()> {
             binding_policy,
             plan_only,
             json,
+            store_root,
         } => {
             if plan_only {
                 handle_bind_plan_only(volume, binding_policy, json)?;
             } else {
-                handle_operation(OperationKind::Bind, volume, policy)?;
+                handle_operation(OperationKind::Bind, volume, policy, store_root)?;
             }
         }
-        Commands::Unlock { volume, policy } => {
-            handle_operation(OperationKind::Unlock, volume, policy)?
-        }
-        Commands::Lock { volume, policy } => handle_operation(OperationKind::Lock, volume, policy)?,
-        Commands::Eject { volume, policy } => {
-            handle_operation(OperationKind::Eject, volume, policy)?
-        }
+        Commands::Unlock {
+            volume,
+            policy,
+            store_root,
+        } => handle_operation(OperationKind::Unlock, volume, policy, store_root)?,
+        Commands::Lock {
+            volume,
+            policy,
+            store_root,
+        } => handle_operation(OperationKind::Lock, volume, policy, store_root)?,
+        Commands::Eject {
+            volume,
+            policy,
+            store_root,
+        } => handle_operation(OperationKind::Eject, volume, policy, store_root)?,
         Commands::Audit {
             volume,
             policy,
             json,
-        } => handle_audit(volume, policy, json)?,
-        Commands::Export { volume } => {
+            store_root,
+        } => handle_audit(volume, policy, json, store_root)?,
+        Commands::Export {
+            volume,
+            store_root: _,
+        } => {
             println!("Operation: Export on volume {}", volume);
             println!("Status: RESERVED");
             println!("Reason: RESERVED_NOT_IMPLEMENTED");
             println!("Note: Export is for resealing for external transfer, not for unlocking.");
         }
-        Commands::Rebind { volume } => {
+        Commands::Rebind {
+            volume,
+            store_root: _,
+        } => {
             println!("Operation: Rebind on volume {}", volume);
             println!("Status: RESERVED");
             println!("Reason: RESERVED_NOT_IMPLEMENTED");
-            println!("Note: Rebind transfers ownership boundaries and is distinct from unlock/export/eject.");
+            println!(
+                "Note: Rebind transfers ownership boundaries and is distinct from unlock/export/eject."
+            );
         }
-        Commands::Recover { volume } => {
+        Commands::Recover {
+            volume,
+            store_root: _,
+        } => {
             println!("Operation: Recover on volume {}", volume);
             println!("Status: RESERVED");
             println!("Reason: RESERVED_NOT_IMPLEMENTED");

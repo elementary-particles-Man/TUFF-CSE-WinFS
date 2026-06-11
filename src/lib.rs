@@ -1,5 +1,6 @@
 pub mod binding;
 pub mod binding_policy;
+pub mod binding_store;
 pub mod completion;
 pub mod driver;
 pub mod install;
@@ -9,6 +10,7 @@ pub mod managed_policy;
 pub mod operation_journal;
 pub mod operations;
 pub mod policy;
+pub mod runtime_session;
 pub mod uninstall;
 pub mod verify;
 pub mod volume;
