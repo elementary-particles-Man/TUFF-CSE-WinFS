@@ -147,7 +147,7 @@ mod tests {
         let session_locked = store.load_runtime_session(&vol_hash).unwrap().unwrap();
         assert_eq!(
             session_locked.status,
-            tuff_cse_winfs::runtime_session::RuntimeSessionStatus::Locked
+            tuff_cse_winfs::runtime_session::RuntimeSessionStatus::Zeroized
         );
 
         // Eject

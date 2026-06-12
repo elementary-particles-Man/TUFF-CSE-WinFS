@@ -32,8 +32,8 @@ mod tests {
             vec![1, 2, 3],
         )
         .unwrap();
-        assert_eq!(buf.len(), 3);
-        assert!(!buf.is_zeroized_for_test());
+        assert_eq!(buf.test_only_len(), 3);
+        assert!(!buf.test_only_is_zeroized());
     }
 
     #[test]

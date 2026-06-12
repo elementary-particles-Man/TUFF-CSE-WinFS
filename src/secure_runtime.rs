@@ -24,13 +24,11 @@ impl SecureRuntimeBuffer {
         }
     }
 
-    #[cfg(test)]
-    pub fn len(&self) -> usize {
+    pub fn test_only_len(&self) -> usize {
         self.buffer.len()
     }
 
-    #[cfg(test)]
-    pub fn is_zeroized_for_test(&self) -> bool {
+    pub fn test_only_is_zeroized(&self) -> bool {
         self.buffer.iter().all(|&b| b == 0)
     }
 }
