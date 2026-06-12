@@ -73,12 +73,28 @@ The project is currently in the **P2A** phase. This stage establishes the logica
 -   **No Raw Secrets:** Ensures that raw TPM identities, host UUIDs, device serials, and generated keys are never persisted, displayed, or logged. Only salted fingerprints and descriptor IDs are retained.
 -   **`bind --plan-only`:** The `tuff-cse-winfsctl` tool now supports generating and displaying a binding descriptor and derivation plan theoretically based on a `BindingPolicy`.
 
-*Note: P2A focuses purely on the modeling and boundary enforcement. It does not implement actual TPM interaction, Windows CNG/DPAPI calls, driver I/O interception, or runtime key generation.*
+## Current Phase: P2C (Runtime Zeroize / Journal Recovery)
+
+The project is currently in the **P2C** phase. This stage focuses on safe memory handling for runtime secrets and robust recovery from interrupted operations.
+
+### P2C Highlights:
+-   **Runtime Secret Zeroize:** Implements `SecureRuntimeBuffer` using the `zeroize` crate to ensure that sensitive material is cleared from memory when no longer needed.
+-   **Enhanced Journaling:** The operation journal now tracks `Begin`, `Commit`, `Abort`, and `Recovery` phases, enabling transactional safety for managed state transitions.
+-   **Failure Recovery:** The `tuff-cse-winfsctl status --recover-stale` command can now detect and recover from interrupted operations (Begin without Commit) or stale runtime sessions.
+-   **Single-Host State (P2B legacy):** Binding descriptors, derivation plans, and volume states are persisted to disk under `ProgramData`, enabling state-aware management.
+
+*Note: P2C focuses on memory and state safety. It does not implement actual TPM interaction, Windows CNG/DPAPI calls, driver I/O interception, or runtime key generation. Secret buffers in this phase contain test/dev placeholder data.*
 
 ### Binding Plan Example
 To view the binding descriptor and derivation plan (simulated input) locally:
 ```powershell
 cargo run --bin tuff-cse-winfsctl -- bind --volume D: --binding-policy examples/binding-policy.example.json --plan-only
+```
+
+### Recovery Example
+To check and recover stale volume states:
+```powershell
+cargo run --bin tuff-cse-winfsctl -- status --volume D: --recover-stale
 ```
 
 ## CI & Validation

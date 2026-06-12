@@ -202,10 +202,39 @@ pub fn execute_managed_operation(
         return Ok(result);
     }
 
+    let dummy_hash = BindingStore::volume_hash(&request.volume);
+
+    // Prepare journal record
+    let record_template = crate::operation_journal::OperationJournalRecord {
+        seq: 0,
+        phase: crate::operation_journal::OperationJournalPhase::Begin,
+        operation_id: result.operation_id.clone(),
+        kind: result.kind,
+        volume: result.volume.clone(),
+        requested_by: request.requested_by.clone(),
+        result_status: result.status.clone(),
+        previous_state: result.previous_state,
+        next_state: result.next_state,
+        descriptor_id: None,
+        plan_id: None,
+        session_id: None,
+        recovery_reason: None,
+        reason: result.reason.clone(),
+        timestamp: result.timestamp,
+    };
+
+    // Append Begin
+    if request.kind != OperationKind::Status && request.kind != OperationKind::Audit {
+        let _ = crate::operation_journal::append_begin_record(
+            store.root_path(),
+            &dummy_hash,
+            record_template.clone(),
+        );
+    }
+
     // Persist state updates and handle specific operation logic
     match result.kind {
         OperationKind::Bind => {
-            // Mock input snapshot for P2B
             let input = BindingInputSnapshot {
                 raw_tpm_identity: Some("MOCK_TPM_EK_PUB".to_string()),
                 raw_host_id: Some("MOCK_HOST_UUID".to_string()),
@@ -233,31 +262,40 @@ pub fn execute_managed_operation(
             let plan = store.load_key_derivation_plan(&request.volume)?.unwrap();
             let session = RuntimeSession {
                 session_id: format!("SESS-{}", result.operation_id),
-                volume_hash: BindingStore::volume_hash(&request.volume),
+                volume_hash: dummy_hash.clone(),
                 descriptor_id: descriptor.descriptor_id,
                 plan_id: plan.plan_id,
                 status: RuntimeSessionStatus::UnlockedPlaceholder,
                 created_at: result.timestamp,
                 last_transition_at: result.timestamp,
+                zeroize_required: false,
+                zeroized_at: None,
             };
             store.save_runtime_session(&session)?;
             store.save_volume_state(&request.volume, &state)?;
         }
         OperationKind::Lock => {
-            let volume_hash = BindingStore::volume_hash(&request.volume);
-            if let Some(mut session) = store.load_runtime_session(&volume_hash)? {
-                session.status = RuntimeSessionStatus::Locked;
-                session.last_transition_at = result.timestamp;
+            if let Some(mut session) = store.load_runtime_session(&dummy_hash)? {
+                session.mark_zeroize_required();
+                session.mark_zeroized(result.timestamp);
                 store.save_runtime_session(&session)?;
             }
             store.save_volume_state(&request.volume, &state)?;
         }
         OperationKind::Eject => {
-            let volume_hash = BindingStore::volume_hash(&request.volume);
-            store.clear_runtime_session(&volume_hash)?;
+            store.clear_runtime_session(&dummy_hash)?;
             store.save_volume_state(&request.volume, &state)?;
         }
         _ => {}
+    }
+
+    // Append Commit
+    if request.kind != OperationKind::Status && request.kind != OperationKind::Audit {
+        let _ = crate::operation_journal::append_commit_record(
+            store.root_path(),
+            &dummy_hash,
+            record_template,
+        );
     }
 
     Ok(result)

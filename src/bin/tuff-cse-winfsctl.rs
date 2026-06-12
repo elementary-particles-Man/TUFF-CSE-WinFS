@@ -6,7 +6,7 @@ use tuff_cse_winfs::binding_policy;
 use tuff_cse_winfs::binding_store::BindingStore;
 use tuff_cse_winfs::key_material;
 use tuff_cse_winfs::managed_policy::{self, ManagedPolicy};
-use tuff_cse_winfs::operation_journal::{self, OperationJournalRecord};
+use tuff_cse_winfs::operation_journal::{self};
 use tuff_cse_winfs::operations::{self, OperationKind, OperationRequest};
 
 #[derive(Parser)]
@@ -27,6 +27,8 @@ enum Commands {
         policy: Option<PathBuf>,
         #[arg(short, long)]
         json: bool,
+        #[arg(long)]
+        recover_stale: bool,
         #[arg(long, hide = true)]
         store_root: Option<PathBuf>,
     },
@@ -158,20 +160,6 @@ fn handle_operation(
         result.previous_state, result.next_state
     );
 
-    let dummy_hash = BindingStore::volume_hash(&volume);
-
-    let record = OperationJournalRecord {
-        operation_id: result.operation_id,
-        kind: result.kind,
-        volume: result.volume,
-        requested_by: request.requested_by,
-        result_status: result.status,
-        reason: result.reason,
-        timestamp: result.timestamp,
-    };
-
-    let _ = operation_journal::append_journal_record(store.root_path(), &dummy_hash, &record);
-
     Ok(())
 }
 
@@ -201,8 +189,12 @@ fn handle_audit(
                 println!("Audit Journal for Volume: {}", volume);
                 for record in records {
                     println!(
-                        "[{}] OP: {:?}, Status: {:?}, Reason: {}",
-                        record.timestamp, record.kind, record.result_status, record.reason
+                        "[{}] [{:?}] OP: {:?}, Status: {:?}, Reason: {}",
+                        record.timestamp,
+                        record.phase,
+                        record.kind,
+                        record.result_status,
+                        record.reason
                     );
                 }
             }
@@ -212,41 +204,6 @@ fn handle_audit(
                 "No journal found or error reading journal for volume: {}",
                 volume
             );
-        }
-    }
-
-    if policy.audit_status_operations {
-        let request = OperationRequest {
-            operation_id: format!(
-                "OP-AUDIT-{}",
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs()
-            ),
-            kind: OperationKind::Audit,
-            volume: volume.clone(),
-            requested_by: "Admin".to_string(),
-            policy_id: policy.policy_id.clone(),
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
-        };
-
-        if let Ok(result) = operations::execute_managed_operation(request.clone(), &policy, &store)
-        {
-            let record = OperationJournalRecord {
-                operation_id: result.operation_id,
-                kind: result.kind,
-                volume: result.volume,
-                requested_by: request.requested_by,
-                result_status: result.status,
-                reason: result.reason,
-                timestamp: result.timestamp,
-            };
-            let _ =
-                operation_journal::append_journal_record(store.root_path(), &dummy_hash, &record);
         }
     }
 
@@ -306,14 +263,20 @@ fn main() -> Result<()> {
             volume,
             policy,
             json,
+            recover_stale,
             store_root,
         } => {
             if json {
                 println!(
-                    r#"{{"volume": "{}", "status": "Not Implemented in P1C Skeleton"}}"#,
+                    r#"{{"volume": "{}", "status": "Not Implemented in P2C Skeleton"}}"#,
                     volume
                 );
             } else {
+                if recover_stale {
+                    let store = open_store(store_root.clone())?;
+                    let decision = tuff_cse_winfs::recovery::recover_store(&store, &volume)?;
+                    println!("Recovery Decision: {:?}", decision);
+                }
                 handle_operation(OperationKind::Status, volume, policy, store_root)?;
             }
         }

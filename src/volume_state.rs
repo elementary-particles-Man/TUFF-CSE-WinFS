@@ -8,6 +8,7 @@ pub enum VolumeBindingState {
     Locked,
     EjectPending,
     CleanRemoved,
+    RecoveryRequired,
     Error,
 }
 
