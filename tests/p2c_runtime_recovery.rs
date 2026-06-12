@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use tuff_cse_winfs::secure_runtime::{RuntimeSecretKind, SecureRuntimeBuffer};
-    use tuff_cse_winfs::recovery::{recover_store, RecoveryDecision};
-    use tuff_cse_winfs::binding_store::BindingStore;
     use tempfile::tempdir;
+    use tuff_cse_winfs::binding_store::BindingStore;
     use tuff_cse_winfs::managed_policy::ManagedPolicy;
-    use tuff_cse_winfs::operations::{execute_managed_operation, OperationKind, OperationRequest};
     use tuff_cse_winfs::operation_journal::{read_journal_records, OperationJournalPhase};
+    use tuff_cse_winfs::operations::{execute_managed_operation, OperationKind, OperationRequest};
+    use tuff_cse_winfs::recovery::{recover_store, RecoveryDecision};
+    use tuff_cse_winfs::secure_runtime::{RuntimeSecretKind, SecureRuntimeBuffer};
 
     fn setup_store() -> (tempfile::TempDir, BindingStore) {
         let dir = tempdir().unwrap();
@@ -27,14 +27,22 @@ mod tests {
 
     #[test]
     fn test_secure_runtime_buffer_zeroizes_on_drop() {
-        let buf = SecureRuntimeBuffer::new_placeholder(RuntimeSecretKind::PlaceholderUnlockMaterial, vec![1, 2, 3]).unwrap();
+        let buf = SecureRuntimeBuffer::new_placeholder(
+            RuntimeSecretKind::PlaceholderUnlockMaterial,
+            vec![1, 2, 3],
+        )
+        .unwrap();
         assert_eq!(buf.len(), 3);
         assert!(!buf.is_zeroized_for_test());
     }
 
     #[test]
     fn test_secure_runtime_buffer_debug_does_not_expose_secrets() {
-        let buf = SecureRuntimeBuffer::new_placeholder(RuntimeSecretKind::PlaceholderUnlockMaterial, vec![1, 2, 3]).unwrap();
+        let buf = SecureRuntimeBuffer::new_placeholder(
+            RuntimeSecretKind::PlaceholderUnlockMaterial,
+            vec![1, 2, 3],
+        )
+        .unwrap();
         let debug_str = format!("{:?}", buf);
         assert!(debug_str.contains("<SECRET_REDACTED>"));
         assert!(!debug_str.contains("1, 2, 3"));
@@ -42,7 +50,10 @@ mod tests {
 
     #[test]
     fn test_reserved_master_key_cannot_be_created_in_p2c() {
-        let result = SecureRuntimeBuffer::new_placeholder(RuntimeSecretKind::ReservedMasterKey, vec![1, 2, 3]);
+        let result = SecureRuntimeBuffer::new_placeholder(
+            RuntimeSecretKind::ReservedMasterKey,
+            vec![1, 2, 3],
+        );
         assert!(result.is_err());
     }
 
@@ -53,14 +64,16 @@ mod tests {
         let vol_hash = BindingStore::volume_hash("D:");
 
         // Bind writes Begin and Commit
-        let _ = execute_managed_operation(mock_request(OperationKind::Bind), &policy, &store).unwrap();
+        let _ =
+            execute_managed_operation(mock_request(OperationKind::Bind), &policy, &store).unwrap();
         let records = read_journal_records(store.root_path(), &vol_hash).unwrap();
         assert_eq!(records.len(), 2);
         assert_eq!(records[0].phase, OperationJournalPhase::Begin);
         assert_eq!(records[1].phase, OperationJournalPhase::Commit);
 
         // Unlock writes Begin and Commit
-        let _ = execute_managed_operation(mock_request(OperationKind::Unlock), &policy, &store).unwrap();
+        let _ = execute_managed_operation(mock_request(OperationKind::Unlock), &policy, &store)
+            .unwrap();
         let records = read_journal_records(store.root_path(), &vol_hash).unwrap();
         assert_eq!(records.len(), 4);
         assert_eq!(records[2].phase, OperationJournalPhase::Begin);
@@ -82,8 +95,14 @@ mod tests {
         let policy = ManagedPolicy::default();
         let vol_hash = BindingStore::volume_hash("D:");
 
-        let _ = execute_managed_operation(mock_request(OperationKind::Bind), &policy, &store).unwrap();
-        let json_lines = std::fs::read_to_string(store.root_path().join(format!("JRN/operations-{}.jsonl", vol_hash))).unwrap();
+        let _ =
+            execute_managed_operation(mock_request(OperationKind::Bind), &policy, &store).unwrap();
+        let json_lines = std::fs::read_to_string(
+            store
+                .root_path()
+                .join(format!("JRN/operations-{}.jsonl", vol_hash)),
+        )
+        .unwrap();
 
         assert!(!json_lines.contains("basekey"));
         assert!(!json_lines.contains("MK"));
