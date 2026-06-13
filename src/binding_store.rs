@@ -2,6 +2,7 @@ use crate::binding::BindingDescriptor;
 use crate::export_manifest::{ExportManifest, ExportPlan};
 use crate::key_material::KeyDerivationPlan;
 use crate::layout;
+use crate::manual_flow::ManualFlowRecord;
 use crate::rebind_model::{RebindManifest, RebindPlan};
 use crate::recovery_key::{RecoveryKeyDescriptor, RecoveryPlan};
 use crate::runtime_session::RuntimeSession;
@@ -44,6 +45,7 @@ impl BindingStore {
             "KEYS/recovery-plans",
             "KEYS/rebind-plans",
             "JRN/runtime",
+            "JRN/manual",
             "JRN",
         ];
         for d in dirs {
@@ -282,5 +284,29 @@ impl BindingStore {
         let file = File::open(&path)?;
         let manifest = serde_json::from_reader(file)?;
         Ok(Some(manifest))
+    }
+
+    pub fn save_manual_flow_record(&self, record: &ManualFlowRecord) -> Result<()> {
+        let path = self
+            .root
+            .join(format!("JRN/manual/{}.manual.json", record.manual_flow_id));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, record)?;
+        Ok(())
+    }
+
+    pub fn load_manual_flow_record(
+        &self,
+        manual_flow_id: &str,
+    ) -> Result<Option<ManualFlowRecord>> {
+        let path = self
+            .root
+            .join(format!("JRN/manual/{}.manual.json", manual_flow_id));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let record = serde_json::from_reader(file)?;
+        Ok(Some(record))
     }
 }

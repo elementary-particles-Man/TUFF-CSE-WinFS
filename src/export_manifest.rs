@@ -11,15 +11,9 @@ pub enum ExportMode {
     OfflineTransferReserved,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ExportStatus {
-    Planned,
-    PendingCryptoPhase,
-    PendingDriverPhase,
-    ManifestWritten,
-    Reserved,
-    Rejected,
-}
+use crate::plan_state::PlanLifecycleStatus;
+
+pub type ExportStatus = PlanLifecycleStatus;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExportRecipient {
@@ -115,7 +109,7 @@ pub fn build_export_manifest(
         recipient_id: plan.recipient.recipient_id.clone(),
         recipient_key_fingerprint: plan.recipient.recipient_key_fingerprint.clone(),
         export_mode: plan.mode.clone(),
-        status: ExportStatus::ManifestWritten,
+        status: ExportStatus::Planned,
         created_at: plan.created_at,
         journal_operation_id,
     }

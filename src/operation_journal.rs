@@ -29,6 +29,7 @@ pub struct OperationJournalRecord {
     pub descriptor_id: Option<String>,
     pub plan_id: Option<String>,
     pub session_id: Option<String>,
+    pub manual_flow_id: Option<String>,
     pub recovery_reason: Option<String>,
     pub reason: String,
     pub timestamp: u64,

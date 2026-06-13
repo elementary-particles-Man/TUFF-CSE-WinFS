@@ -4,11 +4,12 @@ use std::path::PathBuf;
 use tuff_cse_winfs::binding::{self, BindingInputSnapshot};
 use tuff_cse_winfs::binding_policy;
 use tuff_cse_winfs::binding_store::BindingStore;
-use tuff_cse_winfs::export_manifest::{self, ExportRecipient};
+use tuff_cse_winfs::export_manifest::ExportRecipient;
 use tuff_cse_winfs::export_policy;
 use tuff_cse_winfs::key_material;
 use tuff_cse_winfs::managed_policy::{self, ManagedPolicy};
-use tuff_cse_winfs::operation_journal::{self, OperationJournalRecord};
+use tuff_cse_winfs::manual_flow::ManualFlowKind;
+use tuff_cse_winfs::operation_journal::{self};
 use tuff_cse_winfs::operations::{self, OperationKind, OperationRequest};
 use tuff_cse_winfs::rebind_model;
 use tuff_cse_winfs::recovery_key;
@@ -94,9 +95,9 @@ enum Commands {
         #[arg(short, long)]
         volume: String,
         #[arg(long)]
-        recipient: String,
+        recipient: Option<String>,
         #[arg(long)]
-        recipient_key_fp: String,
+        recipient_key_fp: Option<String>,
         #[arg(long)]
         export_policy: Option<PathBuf>,
         #[arg(long)]
@@ -105,17 +106,27 @@ enum Commands {
         store_root: Option<PathBuf>,
         #[arg(short, long)]
         json: bool,
+        #[arg(long)]
+        require_manual_confirmation: bool,
+        #[arg(long)]
+        complete_plan: Option<String>,
+        #[arg(long)]
+        cancel_plan: Option<String>,
+        #[arg(long)]
+        confirm: Option<String>,
+        #[arg(long)]
+        reason: Option<String>,
     },
     /// Transfer ownership boundary
     Rebind {
         #[arg(short, long)]
         volume: String,
         #[arg(long)]
-        new_host_fp: String,
+        new_host_fp: Option<String>,
         #[arg(long)]
         new_host_label: Option<String>,
         #[arg(long)]
-        reason: String,
+        reason: Option<String>,
         #[arg(long)]
         rebind_policy: Option<PathBuf>,
         #[arg(long)]
@@ -124,15 +135,21 @@ enum Commands {
         store_root: Option<PathBuf>,
         #[arg(short, long)]
         json: bool,
+        #[arg(long)]
+        complete_plan: Option<String>,
+        #[arg(long)]
+        cancel_plan: Option<String>,
+        #[arg(long)]
+        confirm: Option<String>,
     },
     /// Recover a volume
     Recover {
         #[arg(short, long)]
         volume: String,
         #[arg(long)]
-        recovery_key_fp: String,
+        recovery_key_fp: Option<String>,
         #[arg(long)]
-        reason: String,
+        reason: Option<String>,
         #[arg(long)]
         recovery_policy: Option<PathBuf>,
         #[arg(long)]
@@ -141,6 +158,12 @@ enum Commands {
         store_root: Option<PathBuf>,
         #[arg(short, long)]
         json: bool,
+        #[arg(long)]
+        complete_plan: Option<String>,
+        #[arg(long)]
+        cancel_plan: Option<String>,
+        #[arg(long)]
+        confirm: Option<String>,
     },
 }
 
@@ -248,23 +271,94 @@ fn handle_audit(
 
 fn handle_export(
     volume: String,
-    recipient_id: String,
-    recipient_key_fp: String,
+    recipient_id: Option<String>,
+    recipient_key_fp: Option<String>,
     export_policy_path: Option<PathBuf>,
     manifest_out: Option<PathBuf>,
     store_root: Option<PathBuf>,
     json: bool,
+    require_manual_confirmation: bool,
+    complete_plan: Option<String>,
+    cancel_plan: Option<String>,
+    confirm: Option<String>,
+    reason_code: Option<String>,
 ) -> Result<()> {
     let policy = load_policy_or_default(None)?;
+    let store = open_store(store_root)?;
+
+    if let Some(target_plan_id) = complete_plan {
+        let request = OperationRequest {
+            operation_id: format!(
+                "OP-MCOMPLETE-{}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+            ),
+            kind: OperationKind::ManualComplete,
+            volume,
+            requested_by: "Admin".to_string(),
+            policy_id: "MANUAL-FLOW".to_string(),
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        };
+        let result = operations::execute_manual_flow_operation(
+            request,
+            &store,
+            ManualFlowKind::ExportComplete,
+            target_plan_id,
+            confirm.unwrap_or_default(),
+            reason_code.unwrap_or_default(),
+        )?;
+        println!("Status: {:?}", result.status);
+        println!("Reason: {}", result.reason);
+        return Ok(());
+    }
+
+    if let Some(target_plan_id) = cancel_plan {
+        let request = OperationRequest {
+            operation_id: format!(
+                "OP-MCANCEL-{}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+            ),
+            kind: OperationKind::ManualCancel,
+            volume,
+            requested_by: "Admin".to_string(),
+            policy_id: "MANUAL-FLOW".to_string(),
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        };
+        let result = operations::execute_manual_flow_operation(
+            request,
+            &store,
+            ManualFlowKind::ExportCancel,
+            target_plan_id,
+            confirm.unwrap_or_default(),
+            reason_code.unwrap_or_default(),
+        )?;
+        println!("Status: {:?}", result.status);
+        println!("Reason: {}", result.reason);
+        return Ok(());
+    }
+
+    let rid = recipient_id.ok_or_else(|| anyhow::anyhow!("recipient required"))?;
+    let rkfp = recipient_key_fp.ok_or_else(|| anyhow::anyhow!("recipient-key-fp required"))?;
+
     let export_policy = match export_policy_path {
         Some(p) => export_policy::load_export_policy(p)?,
         None => export_policy::default_manifest_only_policy(),
     };
-    let store = open_store(store_root)?;
 
     let recipient = ExportRecipient {
-        recipient_id,
-        recipient_key_fingerprint: recipient_key_fp,
+        recipient_id: rid,
+        recipient_key_fingerprint: rkfp,
         recipient_org_hint: None,
     };
 
@@ -286,8 +380,14 @@ fn handle_export(
             .as_secs(),
     };
 
-    let result =
-        operations::execute_export_operation(request, &policy, &export_policy, &store, recipient)?;
+    let result = operations::execute_export_operation(
+        request,
+        &policy,
+        &export_policy,
+        &store,
+        recipient,
+        require_manual_confirmation,
+    )?;
 
     if json {
         println!("{}", serde_json::to_string(&result)?);
@@ -313,19 +413,57 @@ fn handle_export(
 
 fn handle_recover(
     volume: String,
-    recovery_key_fp: String,
-    reason: String,
+    recovery_key_fp: Option<String>,
+    reason: Option<String>,
     recovery_policy_path: Option<PathBuf>,
     plan_out: Option<PathBuf>,
     store_root: Option<PathBuf>,
     json: bool,
+    complete_plan: Option<String>,
+    _cancel_plan: Option<String>,
+    confirm: Option<String>,
 ) -> Result<()> {
     let policy = load_policy_or_default(None)?;
+    let store = open_store(store_root)?;
+
+    if let Some(target_plan_id) = complete_plan {
+        let request = OperationRequest {
+            operation_id: format!(
+                "OP-RECOVER-COMPLETE-{}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+            ),
+            kind: OperationKind::ManualComplete,
+            volume,
+            requested_by: "Admin".to_string(),
+            policy_id: "MANUAL-FLOW".to_string(),
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        };
+        let result = operations::execute_manual_flow_operation(
+            request,
+            &store,
+            ManualFlowKind::RecoverComplete,
+            target_plan_id,
+            confirm.unwrap_or_default(),
+            "RECOVERY_CONFIRMED".to_string(),
+        )?;
+        println!("Status: {:?}", result.status);
+        println!("Reason: {}", result.reason);
+        return Ok(());
+    }
+
+    let fp = recovery_key_fp.ok_or_else(|| anyhow::anyhow!("recovery-key-fp required"))?;
+    let rsn = reason.ok_or_else(|| anyhow::anyhow!("reason required"))?;
+
     let recovery_policy = match recovery_policy_path {
         Some(p) => recovery_key::load_recovery_policy(p)?,
         None => recovery_key::default_recovery_policy(),
     };
-    let store = open_store(store_root)?;
 
     let request = OperationRequest {
         operation_id: format!(
@@ -345,14 +483,8 @@ fn handle_recover(
             .as_secs(),
     };
 
-    let result = operations::execute_recover_operation(
-        request,
-        &policy,
-        &recovery_policy,
-        &store,
-        recovery_key_fp,
-        reason,
-    )?;
+    let result =
+        operations::execute_recover_operation(request, &policy, &recovery_policy, &store, fp, rsn)?;
 
     if json {
         println!("{}", serde_json::to_string(&result)?);
@@ -376,20 +508,58 @@ fn handle_recover(
 
 fn handle_rebind(
     volume: String,
-    new_host_fp: String,
+    new_host_fp: Option<String>,
     new_host_label: Option<String>,
-    reason: String,
+    reason: Option<String>,
     rebind_policy_path: Option<PathBuf>,
     manifest_out: Option<PathBuf>,
     store_root: Option<PathBuf>,
     json: bool,
+    complete_plan: Option<String>,
+    _cancel_plan: Option<String>,
+    confirm: Option<String>,
 ) -> Result<()> {
     let policy = load_policy_or_default(None)?;
+    let store = open_store(store_root)?;
+
+    if let Some(target_plan_id) = complete_plan {
+        let request = OperationRequest {
+            operation_id: format!(
+                "OP-REBIND-COMPLETE-{}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+            ),
+            kind: OperationKind::ManualComplete,
+            volume,
+            requested_by: "Admin".to_string(),
+            policy_id: "MANUAL-FLOW".to_string(),
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        };
+        let result = operations::execute_manual_flow_operation(
+            request,
+            &store,
+            ManualFlowKind::RebindComplete,
+            target_plan_id,
+            confirm.unwrap_or_default(),
+            "REBIND_CONFIRMED".to_string(),
+        )?;
+        println!("Status: {:?}", result.status);
+        println!("Reason: {}", result.reason);
+        return Ok(());
+    }
+
+    let fp = new_host_fp.ok_or_else(|| anyhow::anyhow!("new-host-fp required"))?;
+    let rsn = reason.ok_or_else(|| anyhow::anyhow!("reason required"))?;
+
     let rebind_policy = match rebind_policy_path {
         Some(p) => rebind_model::load_rebind_policy(p)?,
         None => rebind_model::default_rebind_policy(),
     };
-    let store = open_store(store_root)?;
 
     let request = OperationRequest {
         operation_id: format!(
@@ -414,9 +584,9 @@ fn handle_rebind(
         &policy,
         &rebind_policy,
         &store,
-        new_host_fp,
+        fp,
         new_host_label,
-        reason,
+        rsn,
     )?;
 
     if json {
@@ -552,6 +722,11 @@ fn main() -> Result<()> {
             manifest_out,
             store_root,
             json,
+            require_manual_confirmation,
+            complete_plan,
+            cancel_plan,
+            confirm,
+            reason,
         } => handle_export(
             volume,
             recipient,
@@ -560,6 +735,11 @@ fn main() -> Result<()> {
             manifest_out,
             store_root,
             json,
+            require_manual_confirmation,
+            complete_plan,
+            cancel_plan,
+            confirm,
+            reason,
         )?,
         Commands::Rebind {
             volume,
@@ -570,6 +750,9 @@ fn main() -> Result<()> {
             manifest_out,
             store_root,
             json,
+            complete_plan,
+            cancel_plan,
+            confirm,
         } => handle_rebind(
             volume,
             new_host_fp,
@@ -579,6 +762,9 @@ fn main() -> Result<()> {
             manifest_out,
             store_root,
             json,
+            complete_plan,
+            cancel_plan,
+            confirm,
         )?,
         Commands::Recover {
             volume,
@@ -588,6 +774,9 @@ fn main() -> Result<()> {
             plan_out,
             store_root,
             json,
+            complete_plan,
+            cancel_plan,
+            confirm,
         } => handle_recover(
             volume,
             recovery_key_fp,
@@ -596,6 +785,9 @@ fn main() -> Result<()> {
             plan_out,
             store_root,
             json,
+            complete_plan,
+            cancel_plan,
+            confirm,
         )?,
     }
 

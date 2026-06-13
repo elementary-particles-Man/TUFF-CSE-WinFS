@@ -5,6 +5,10 @@ use crate::export_manifest::{self, ExportRecipient};
 use crate::export_policy;
 use crate::key_material;
 use crate::managed_policy::ManagedPolicy;
+use crate::manual_flow::{self, ManualFlowKind};
+use crate::plan_state::PlanLifecycleStatus;
+use crate::rebind_model::{self, RebindPolicy};
+use crate::recovery_key::{self, RecoveryPolicy};
 use crate::runtime_session::{RuntimeSession, RuntimeSessionStatus};
 use crate::volume_state::{VolumeBindingState, VolumeRuntimeState};
 use anyhow::Result;
@@ -22,6 +26,8 @@ pub enum OperationKind {
     Export,
     Rebind,
     Recover,
+    ManualComplete,
+    ManualCancel,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -78,6 +84,7 @@ pub fn execute_operation(
         OperationKind::Export => policy.allow_export,
         OperationKind::Rebind => policy.allow_rebind,
         OperationKind::Recover => policy.allow_recover,
+        OperationKind::ManualComplete | OperationKind::ManualCancel => true,
     };
 
     if !allowed {
@@ -96,7 +103,9 @@ pub fn execute_operation(
         | OperationKind::Audit
         | OperationKind::Export
         | OperationKind::Recover
-        | OperationKind::Rebind => {
+        | OperationKind::Rebind
+        | OperationKind::ManualComplete
+        | OperationKind::ManualCancel => {
             status = OperationStatus::Accepted;
             reason = "Success".to_string();
         }
@@ -220,6 +229,7 @@ pub fn execute_managed_operation(
         descriptor_id: None,
         plan_id: None,
         session_id: None,
+        manual_flow_id: None,
         recovery_reason: None,
         reason: result.reason.clone(),
         timestamp: result.timestamp,
@@ -303,15 +313,13 @@ pub fn execute_managed_operation(
     Ok(result)
 }
 
-use crate::rebind_model::{self, RebindPolicy};
-use crate::recovery_key::{self, RecoveryPolicy};
-
 pub fn execute_export_operation(
     request: OperationRequest,
-    policy: &ManagedPolicy,
+    _policy: &ManagedPolicy,
     export_policy: &export_policy::ExportPolicy,
     store: &BindingStore,
     recipient: ExportRecipient,
+    require_manual_confirmation: bool,
 ) -> Result<OperationResult> {
     let state = store.load_volume_state(&request.volume)?;
     let dummy_hash = BindingStore::volume_hash(&request.volume);
@@ -339,7 +347,7 @@ pub fn execute_export_operation(
     }
 
     // Prepare journal record
-    let record_template = crate::operation_journal::OperationJournalRecord {
+    let mut record_template = crate::operation_journal::OperationJournalRecord {
         seq: 0,
         phase: crate::operation_journal::OperationJournalPhase::Begin,
         operation_id: request.operation_id.clone(),
@@ -352,6 +360,7 @@ pub fn execute_export_operation(
         descriptor_id: None,
         plan_id: None,
         session_id: None,
+        manual_flow_id: None,
         recovery_reason: None,
         reason: "Exporting manifest".to_string(),
         timestamp: request.timestamp,
@@ -363,13 +372,19 @@ pub fn execute_export_operation(
         record_template.clone(),
     );
 
-    let plan =
+    let mut plan =
         export_manifest::build_export_plan(store, &request.volume, export_policy, recipient)?;
+    if require_manual_confirmation {
+        plan.status = PlanLifecycleStatus::ManualConfirmationRequired;
+    }
+
     let manifest =
         export_manifest::build_export_manifest(&plan, export_policy, request.operation_id.clone());
 
     store.save_export_plan(&plan)?;
     store.save_export_manifest(&manifest)?;
+
+    record_template.plan_id = Some(plan.plan_id.clone());
 
     let _ = crate::operation_journal::append_commit_record(
         store.root_path(),
@@ -388,7 +403,7 @@ pub fn execute_export_operation(
 
 pub fn execute_recover_operation(
     request: OperationRequest,
-    policy: &ManagedPolicy,
+    _policy: &ManagedPolicy,
     recovery_policy: &RecoveryPolicy,
     store: &BindingStore,
     recovery_key_fingerprint: String,
@@ -407,6 +422,7 @@ pub fn execute_recover_operation(
         ));
     }
 
+    // Prepare journal record
     let record_template = crate::operation_journal::OperationJournalRecord {
         seq: 0,
         phase: crate::operation_journal::OperationJournalPhase::Begin,
@@ -420,6 +436,7 @@ pub fn execute_recover_operation(
         descriptor_id: None,
         plan_id: None,
         session_id: None,
+        manual_flow_id: None,
         recovery_reason: Some(reason_code.clone()),
         reason: "Generating recovery plan".to_string(),
         timestamp: request.timestamp,
@@ -460,7 +477,7 @@ pub fn execute_recover_operation(
 
 pub fn execute_rebind_operation(
     request: OperationRequest,
-    policy: &ManagedPolicy,
+    _policy: &ManagedPolicy,
     rebind_policy: &RebindPolicy,
     store: &BindingStore,
     new_host_fingerprint: String,
@@ -482,6 +499,7 @@ pub fn execute_rebind_operation(
         ));
     }
 
+    // Prepare journal record
     let record_template = crate::operation_journal::OperationJournalRecord {
         seq: 0,
         phase: crate::operation_journal::OperationJournalPhase::Begin,
@@ -495,6 +513,7 @@ pub fn execute_rebind_operation(
         descriptor_id: None,
         plan_id: None,
         session_id: None,
+        manual_flow_id: None,
         recovery_reason: Some(reason_code.clone()),
         reason: "Generating rebind plan".to_string(),
         timestamp: request.timestamp,
@@ -532,5 +551,140 @@ pub fn execute_rebind_operation(
         state.current,
         state.current,
         format!("Rebind manifest generated: {}", manifest.rebind_id),
+    ))
+}
+
+pub fn execute_manual_flow_operation(
+    request: OperationRequest,
+    store: &BindingStore,
+    kind: ManualFlowKind,
+    target_plan_id: String,
+    confirmation_token: String,
+    reason_code: String,
+) -> Result<OperationResult> {
+    let state = store.load_volume_state(&request.volume)?;
+    let dummy_hash = BindingStore::volume_hash(&request.volume);
+
+    // Prepare journal record
+    let record_template = crate::operation_journal::OperationJournalRecord {
+        seq: 0,
+        phase: crate::operation_journal::OperationJournalPhase::Begin,
+        operation_id: request.operation_id.clone(),
+        kind: request.kind,
+        volume: request.volume.clone(),
+        requested_by: request.requested_by.clone(),
+        result_status: OperationStatus::Accepted,
+        previous_state: state.current,
+        next_state: state.current,
+        descriptor_id: None,
+        plan_id: Some(target_plan_id.clone()),
+        session_id: None,
+        manual_flow_id: None,
+        recovery_reason: Some(reason_code.clone()),
+        reason: format!("Manual flow: {:?}", kind),
+        timestamp: request.timestamp,
+    };
+
+    let _ = crate::operation_journal::append_begin_record(
+        store.root_path(),
+        &dummy_hash,
+        record_template.clone(),
+    );
+
+    let mflow = manual_flow::prepare_manual_flow(
+        kind,
+        target_plan_id.clone(),
+        None,
+        dummy_hash.clone(),
+        reason_code.clone(),
+        &confirmation_token,
+        request.operation_id.clone(),
+    );
+
+    if !manual_flow::verify_confirmation_token(&mflow, &confirmation_token) {
+        let _ = crate::operation_journal::append_abort_record(
+            store.root_path(),
+            &dummy_hash,
+            record_template,
+        );
+        return Ok(build_result(
+            &request,
+            OperationStatus::Rejected,
+            state.current,
+            state.current,
+            "Invalid confirmation token".to_string(),
+        ));
+    }
+
+    // Handle plan status updates
+    match kind {
+        ManualFlowKind::ExportComplete => {
+            if let Some(mut plan) =
+                store.load_export_plan(&target_plan_id.trim_start_matches("PLAN-"))?
+            {
+                if plan.status == PlanLifecycleStatus::Completed
+                    || plan.status == PlanLifecycleStatus::Cancelled
+                {
+                    return Ok(build_result(
+                        &request,
+                        OperationStatus::Rejected,
+                        state.current,
+                        state.current,
+                        "Plan already finalized".to_string(),
+                    ));
+                }
+                plan.status = PlanLifecycleStatus::Completed;
+                store.save_export_plan(&plan)?;
+                if let Some(mut manifest) = store.load_export_manifest(&plan.export_id)? {
+                    manifest.status = PlanLifecycleStatus::Completed;
+                    store.save_export_manifest(&manifest)?;
+                }
+            } else {
+                return Ok(build_result(
+                    &request,
+                    OperationStatus::Rejected,
+                    state.current,
+                    state.current,
+                    "Plan not found".to_string(),
+                ));
+            }
+        }
+        ManualFlowKind::ExportCancel => {
+            if let Some(mut plan) =
+                store.load_export_plan(&target_plan_id.trim_start_matches("PLAN-"))?
+            {
+                plan.status = PlanLifecycleStatus::Cancelled;
+                store.save_export_plan(&plan)?;
+            }
+        }
+        ManualFlowKind::RecoverComplete => {
+            if let Some(mut plan) = store.load_recovery_plan(&target_plan_id)? {
+                plan.status = PlanLifecycleStatus::Completed;
+                store.save_recovery_plan(&plan)?;
+            }
+        }
+        ManualFlowKind::RebindComplete => {
+            if let Some(mut plan) = store.load_rebind_plan(&target_plan_id)? {
+                plan.status = PlanLifecycleStatus::Completed;
+                store.save_rebind_plan(&plan)?;
+            }
+        }
+        _ => {}
+    }
+
+    store.save_manual_flow_record(&mflow)?;
+
+    let _ = crate::operation_journal::append_commit_record(
+        store.root_path(),
+        &dummy_hash,
+        record_template,
+    );
+
+    Ok(build_result(
+        &request,
+        OperationStatus::Accepted,
+        state.current,
+        state.current,
+        "Manual flow completed".to_string(),
     ))
 }

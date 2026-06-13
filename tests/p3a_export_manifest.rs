@@ -66,6 +66,7 @@ mod tests {
             &exp_policy,
             &store,
             recipient,
+            false,
         )
         .unwrap();
 
@@ -93,6 +94,7 @@ mod tests {
             &exp_policy,
             &store,
             recipient,
+            false,
         )
         .unwrap();
 
@@ -137,6 +139,7 @@ mod tests {
             &exp_policy,
             &store,
             recipient,
+            false,
         )
         .unwrap();
 

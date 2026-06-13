@@ -13,14 +13,9 @@ pub enum RecoveryKeyStatus {
     Rejected,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RecoveryPlanStatus {
-    Planned,
-    PendingApprovalPhase,
-    PendingCryptoPhase,
-    Reserved,
-    Rejected,
-}
+use crate::plan_state::PlanLifecycleStatus;
+
+pub type RecoveryPlanStatus = PlanLifecycleStatus;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RecoveryPolicy {

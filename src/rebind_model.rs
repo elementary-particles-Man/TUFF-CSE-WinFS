@@ -5,15 +5,9 @@ use std::fs;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RebindPlanStatus {
-    Planned,
-    PendingApprovalPhase,
-    PendingCryptoPhase,
-    PendingDriverPhase,
-    Reserved,
-    Rejected,
-}
+use crate::plan_state::PlanLifecycleStatus;
+
+pub type RebindPlanStatus = PlanLifecycleStatus;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RebindPolicy {

@@ -105,6 +105,29 @@ To check and recover stale volume states:
 cargo run --bin tuff-cse-winfsctl -- status --volume D: --recover-stale
 ```
 
+## Current Phase: P3C (Manual Export/Rebind/Recover State Implementation)
+
+The project is currently in the **P3C** phase. This stage implements manual confirmation-based state transitions for export, rebind, and recover plans.
+
+### P3C Highlights:
+-   **Manual Confirmation Flow:** Introduces a formal "Manual Complete" and "Manual Cancel" flow for existing plans. This provides a safety check before a plan is considered finalized.
+-   **Plan Lifecycle:** Plans now transition through states: `Planned` -> `ManualConfirmationRequired` -> `ManualConfirmed` -> `Completed` (or `Cancelled`).
+-   **Token Hashing:** Manual confirmation tokens are used for validation but are strictly stored as SHA-256 hashes. Raw tokens never touch the disk.
+-   **Manual Audit Journal:** Dedicated flow records are stored under `JRN/manual/`, providing a clear audit trail of who finalized a plan and why.
+-   **Strict Separation:** Finalizing a plan in P3C does *not* trigger actual data movement, cryptographic restoration, or driver-level changes. It establishes the *management* boundary of completion.
+
+*Note: P3C focuses on manual state management. Local admin approval (P4), AD integration (P5), and Enterprise KMS (P6) are scheduled for later phases.*
+
+### Completing an Export Plan
+```powershell
+cargo run --bin tuff-cse-winfsctl -- export --volume D: --complete-plan <EXPORT_ID> --confirm CONFIRM-EXPORT-001 --reason MANUAL_HANDOFF_CONFIRMED
+```
+
+### Cancelling a Recovery Plan
+```powershell
+cargo run --bin tuff-cse-winfsctl -- recover --volume D: --cancel-plan <RECO_PLAN_ID> --confirm CONFIRM-CANCEL-001 --reason USER_CANCELLED
+```
+
 ## CI & Validation
 
 This project uses GitHub Actions to ensure cross-platform compatibility and code quality. The CI pipeline runs on both `ubuntu-latest` and `windows-latest` for every push and pull request.
