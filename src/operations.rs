@@ -305,7 +305,7 @@ pub fn execute_managed_operation(
 
 pub fn execute_export_operation(
     request: OperationRequest,
-    policy: &ManagedPolicy,
+    _policy: &ManagedPolicy,
     export_policy: &export_policy::ExportPolicy,
     store: &BindingStore,
     recipient: ExportRecipient,
