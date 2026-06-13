@@ -103,15 +103,16 @@ mod tests {
     }
 
     #[test]
-    fn test_export_returns_reserved() {
+    fn test_export_returns_accepted_in_p3a() {
         let mut policy = ManagedPolicy::default();
-        policy.allow_export = true; // Even if allowed by policy, logic should return Reserved
+        policy.allow_export = true;
         let mut state = VolumeRuntimeState::new();
 
         let result =
             execute_operation(mock_request(OperationKind::Export), &policy, &mut state).unwrap();
-        assert_eq!(result.status, OperationStatus::Reserved);
+        assert_eq!(result.status, OperationStatus::Accepted);
     }
+
 
     #[test]
     fn test_rebind_returns_reserved() {

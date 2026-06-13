@@ -3,6 +3,8 @@ pub mod binding_policy;
 pub mod binding_store;
 pub mod completion;
 pub mod driver;
+pub mod export_manifest;
+pub mod export_policy;
 pub mod install;
 pub mod key_material;
 pub mod layout;

@@ -1,4 +1,5 @@
 use crate::binding::BindingDescriptor;
+use crate::export_manifest::{ExportManifest, ExportPlan};
 use crate::key_material::KeyDerivationPlan;
 use crate::layout;
 use crate::runtime_session::RuntimeSession;
@@ -33,7 +34,9 @@ impl BindingStore {
         let dirs = [
             "META/bindings",
             "META/states",
+            "META/exports",
             "KEYS/plans",
+            "KEYS/export-plans",
             "JRN/runtime",
             "JRN",
         ];
@@ -140,5 +143,47 @@ impl BindingStore {
             fs::remove_file(&path)?;
         }
         Ok(())
+    }
+
+    pub fn save_export_manifest(&self, manifest: &ExportManifest) -> Result<()> {
+        let path = self
+            .root
+            .join(format!("META/exports/{}.manifest.json", manifest.export_id));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, manifest)?;
+        Ok(())
+    }
+
+    pub fn load_export_manifest(&self, export_id: &str) -> Result<Option<ExportManifest>> {
+        let path = self
+            .root
+            .join(format!("META/exports/{}.manifest.json", export_id));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let manifest = serde_json::from_reader(file)?;
+        Ok(Some(manifest))
+    }
+
+    pub fn save_export_plan(&self, plan: &ExportPlan) -> Result<()> {
+        let path = self
+            .root
+            .join(format!("KEYS/export-plans/{}.plan.json", plan.export_id));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, plan)?;
+        Ok(())
+    }
+
+    pub fn load_export_plan(&self, export_id: &str) -> Result<Option<ExportPlan>> {
+        let path = self
+            .root
+            .join(format!("KEYS/export-plans/{}.plan.json", export_id));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let plan = serde_json::from_reader(file)?;
+        Ok(Some(plan))
     }
 }

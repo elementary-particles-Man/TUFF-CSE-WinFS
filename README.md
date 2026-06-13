@@ -71,27 +71,28 @@ The project is currently in the **P2A** phase. This stage establishes the logica
 -   **Binding Model:** Defines structures for `BindingPolicy`, `BindingDescriptor`, and `KeyDerivationPlan`.
 -   **Strict Separation:** `ManagedPolicy` (for operation authorization) and `BindingPolicy` (for key material constraints) are separated.
 -   **No Raw Secrets:** Ensures that raw TPM identities, host UUIDs, device serials, and generated keys are never persisted, displayed, or logged. Only salted fingerprints and descriptor IDs are retained.
--   **`bind --plan-only`:** The `tuff-cse-winfsctl` tool now supports generating and displaying a binding descriptor and derivation plan theoretically based on a `BindingPolicy`.
-
-## Current Phase: P2C (Runtime Zeroize / Journal Recovery)
-
-The project is currently in the **P2C** phase. This stage focuses on safe memory handling for runtime secrets and robust recovery from interrupted operations.
-
-### P2C Highlights:
--   **Runtime Secret Zeroize:** Implements `SecureRuntimeBuffer` using the `zeroize` crate to ensure that sensitive material is cleared from memory when no longer needed.
--   **Enhanced Journaling:** The operation journal now tracks `Begin`, `Commit`, `Abort`, and `Recovery` phases, enabling transactional safety for managed state transitions.
--   **Failure Recovery:** The `tuff-cse-winfsctl status --recover-stale` command can now detect and recover from interrupted operations (Begin without Commit) or stale runtime sessions.
 -   **Single-Host State (P2B legacy):** Binding descriptors, derivation plans, and volume states are persisted to disk under `ProgramData`, enabling state-aware management.
 
-*Note: P2C focuses on memory and state safety. It does not implement actual TPM interaction, Windows CNG/DPAPI calls, driver I/O interception, or runtime key generation. Secret buffers in this phase contain test/dev placeholder data.*
+## Current Phase: P3A (Managed Export Manifest Boundary)
 
-### Binding Plan Example
-To view the binding descriptor and derivation plan (simulated input) locally:
+The project is currently in the **P3A** phase. This stage introduces the boundary for managed data exports, distinguishing between local usage (`unlock`) and transfer-oriented operations (`export`).
+
+### P3A Highlights:
+-   **Export Manifests:** Defines `ExportPolicy`, `ExportRecipient`, `ExportPlan`, and `ExportManifest` to manage the lifecycle of data handovers.
+-   **Managed Export Boundary:** The `export` command now generates detailed manifest and plan files under `ProgramData\TUFF-CSE-WinFS\devices\META\exports\`.
+-   **Operation Clarity:** Explicitly separates `unlock` (local usage), `export` (re-sealing for external transfer), `eject` (safe removal), and `rebind` (ownership boundary transfer).
+-   **No Secret Exposure:** Ensures that recipient private keys and real key material are never handled or persisted. Manifests contain recipient IDs and key fingerprints for validation.
+
+*Note: P3A focuses on the export contract and metadata. It does not implement actual data copying, re-sealing, recipient public-key encryption, or rebind/recover logic (planned for P3B/P3C).*
+
+### Export Example
+To generate an export plan and manifest for a bound volume:
 ```powershell
-cargo run --bin tuff-cse-winfsctl -- bind --volume D: --binding-policy examples/binding-policy.example.json --plan-only
+cargo run --bin tuff-cse-winfsctl -- export --volume D: --recipient RECIPIENT-ID-001 --recipient-key-fp FP-ABCD-1234
 ```
 
 ### Recovery Example
+
 To check and recover stale volume states:
 ```powershell
 cargo run --bin tuff-cse-winfsctl -- status --volume D: --recover-stale

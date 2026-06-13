@@ -4,6 +4,8 @@ use std::path::PathBuf;
 use tuff_cse_winfs::binding::{self, BindingInputSnapshot};
 use tuff_cse_winfs::binding_policy;
 use tuff_cse_winfs::binding_store::BindingStore;
+use tuff_cse_winfs::export_manifest::ExportRecipient;
+use tuff_cse_winfs::export_policy;
 use tuff_cse_winfs::key_material;
 use tuff_cse_winfs::managed_policy::{self, ManagedPolicy};
 use tuff_cse_winfs::operation_journal::{self};
@@ -85,12 +87,22 @@ enum Commands {
         #[arg(long, hide = true)]
         store_root: Option<PathBuf>,
     },
-    /// (Reserved) Reseal for external transfer
+    /// Reseal for external transfer
     Export {
         #[arg(short, long)]
         volume: String,
+        #[arg(long)]
+        recipient: String,
+        #[arg(long)]
+        recipient_key_fp: String,
+        #[arg(long)]
+        export_policy: Option<PathBuf>,
+        #[arg(long)]
+        manifest_out: Option<PathBuf>,
         #[arg(long, hide = true)]
         store_root: Option<PathBuf>,
+        #[arg(short, long)]
+        json: bool,
     },
     /// (Reserved) Transfer ownership boundary
     Rebind {
@@ -210,6 +222,71 @@ fn handle_audit(
     Ok(())
 }
 
+fn handle_export(
+    volume: String,
+    recipient_id: String,
+    recipient_key_fp: String,
+    export_policy_path: Option<PathBuf>,
+    manifest_out: Option<PathBuf>,
+    store_root: Option<PathBuf>,
+    json: bool,
+) -> Result<()> {
+    let policy = load_policy_or_default(None)?;
+    let export_policy = match export_policy_path {
+        Some(p) => export_policy::load_export_policy(p)?,
+        None => export_policy::default_manifest_only_policy(),
+    };
+    let store = open_store(store_root)?;
+
+    let recipient = ExportRecipient {
+        recipient_id,
+        recipient_key_fingerprint: recipient_key_fp,
+        recipient_org_hint: None,
+    };
+
+    let request = OperationRequest {
+        operation_id: format!(
+            "OP-EXPORT-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        ),
+        kind: OperationKind::Export,
+        volume: volume.clone(),
+        requested_by: "Admin".to_string(),
+        policy_id: export_policy.policy_id.clone(),
+        timestamp: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs(),
+    };
+
+    let result =
+        operations::execute_export_operation(request, &policy, &export_policy, &store, recipient)?;
+
+    if json {
+        println!("{}", serde_json::to_string(&result)?);
+    } else {
+        println!("Operation: Export");
+        println!("Status: {:?}", result.status);
+        println!("Reason: {}", result.reason);
+    }
+
+    if let Some(out_path) = manifest_out {
+        let export_id = result.reason.split(": ").nth(1).unwrap_or("");
+        if let Some(manifest) =
+            store.load_export_manifest(export_id.trim_start_matches("MANIFEST-"))?
+        {
+            let file = std::fs::File::create(out_path)?;
+            serde_json::to_writer_pretty(file, &manifest)?;
+            println!("Manifest copied to specified output path.");
+        }
+    }
+
+    Ok(())
+}
+
 fn handle_bind_plan_only(
     volume: String,
     binding_policy_path: Option<PathBuf>,
@@ -268,7 +345,7 @@ fn main() -> Result<()> {
         } => {
             if json {
                 println!(
-                    r#"{{"volume": "{}", "status": "Not Implemented in P2C Skeleton"}}"#,
+                    r#"{{"volume": "{}", "status": "Not Implemented in P1C Skeleton"}}"#,
                     volume
                 );
             } else {
@@ -317,13 +394,21 @@ fn main() -> Result<()> {
         } => handle_audit(volume, policy, json, store_root)?,
         Commands::Export {
             volume,
-            store_root: _,
-        } => {
-            println!("Operation: Export on volume {}", volume);
-            println!("Status: RESERVED");
-            println!("Reason: RESERVED_NOT_IMPLEMENTED");
-            println!("Note: Export is for resealing for external transfer, not for unlocking.");
-        }
+            recipient,
+            recipient_key_fp,
+            export_policy,
+            manifest_out,
+            store_root,
+            json,
+        } => handle_export(
+            volume,
+            recipient,
+            recipient_key_fp,
+            export_policy,
+            manifest_out,
+            store_root,
+            json,
+        )?,
         Commands::Rebind {
             volume,
             store_root: _,

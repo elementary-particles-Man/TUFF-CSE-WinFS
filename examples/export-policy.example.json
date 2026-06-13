@@ -1,0 +1,11 @@
+{
+  "policy_id": "FIN-CSE-WINFS-EXPORT-2026-001",
+  "allow_manifest_only": true,
+  "allow_managed_rewrap": false,
+  "allow_offline_transfer": false,
+  "require_recipient_id": true,
+  "require_recipient_key_fingerprint": true,
+  "allow_plaintext_export": false,
+  "persist_raw_identifiers": false,
+  "audit_export_operations": true
+}

@@ -1,6 +1,8 @@
 use crate::binding::{self, BindingInputSnapshot};
 use crate::binding_policy;
 use crate::binding_store::BindingStore;
+use crate::export_manifest::{self, ExportRecipient};
+use crate::export_policy;
 use crate::key_material;
 use crate::managed_policy::ManagedPolicy;
 use crate::runtime_session::{RuntimeSession, RuntimeSessionStatus};
@@ -90,11 +92,11 @@ pub fn execute_operation(
     }
 
     match request.kind {
-        OperationKind::Status | OperationKind::Audit => {
+        OperationKind::Status | OperationKind::Audit | OperationKind::Export => {
             status = OperationStatus::Accepted;
             reason = "Success".to_string();
         }
-        OperationKind::Export | OperationKind::Rebind | OperationKind::Recover => {
+        OperationKind::Rebind | OperationKind::Recover => {
             status = OperationStatus::Reserved;
             reason = "RESERVED_NOT_IMPLEMENTED".to_string();
         }
@@ -299,4 +301,84 @@ pub fn execute_managed_operation(
     }
 
     Ok(result)
+}
+
+pub fn execute_export_operation(
+    request: OperationRequest,
+    policy: &ManagedPolicy,
+    export_policy: &export_policy::ExportPolicy,
+    store: &BindingStore,
+    recipient: ExportRecipient,
+) -> Result<OperationResult> {
+    let state = store.load_volume_state(&request.volume)?;
+    let dummy_hash = BindingStore::volume_hash(&request.volume);
+
+    if state.current == VolumeBindingState::Unregistered
+        || state.current == VolumeBindingState::RecoveryRequired
+    {
+        return Ok(build_result(
+            &request,
+            OperationStatus::Rejected,
+            state.current,
+            state.current,
+            "Invalid source state for export".to_string(),
+        ));
+    }
+
+    if store.load_binding_descriptor(&request.volume)?.is_none() {
+        return Ok(build_result(
+            &request,
+            OperationStatus::Rejected,
+            state.current,
+            state.current,
+            "Binding not found. Cannot perform operation.".to_string(),
+        ));
+    }
+
+    // Prepare journal record
+    let record_template = crate::operation_journal::OperationJournalRecord {
+        seq: 0,
+        phase: crate::operation_journal::OperationJournalPhase::Begin,
+        operation_id: request.operation_id.clone(),
+        kind: OperationKind::Export,
+        volume: request.volume.clone(),
+        requested_by: request.requested_by.clone(),
+        result_status: OperationStatus::Accepted,
+        previous_state: state.current,
+        next_state: state.current,
+        descriptor_id: None,
+        plan_id: None,
+        session_id: None,
+        recovery_reason: None,
+        reason: "Exporting manifest".to_string(),
+        timestamp: request.timestamp,
+    };
+
+    let _ = crate::operation_journal::append_begin_record(
+        store.root_path(),
+        &dummy_hash,
+        record_template.clone(),
+    );
+
+    let plan =
+        export_manifest::build_export_plan(store, &request.volume, export_policy, recipient)?;
+    let manifest =
+        export_manifest::build_export_manifest(&plan, export_policy, request.operation_id.clone());
+
+    store.save_export_plan(&plan)?;
+    store.save_export_manifest(&manifest)?;
+
+    let _ = crate::operation_journal::append_commit_record(
+        store.root_path(),
+        &dummy_hash,
+        record_template,
+    );
+
+    Ok(build_result(
+        &request,
+        OperationStatus::Accepted,
+        state.current,
+        state.current,
+        format!("Export manifest generated: {}", manifest.manifest_id),
+    ))
 }
