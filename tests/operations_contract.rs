@@ -113,7 +113,6 @@ mod tests {
         assert_eq!(result.status, OperationStatus::Accepted);
     }
 
-
     #[test]
     fn test_rebind_returns_reserved() {
         let mut policy = ManagedPolicy::default();
