@@ -114,26 +114,27 @@ mod tests {
     }
 
     #[test]
-    fn test_rebind_returns_reserved() {
+    fn test_rebind_returns_accepted_in_p3b() {
         let mut policy = ManagedPolicy::default();
         policy.allow_rebind = true;
         let mut state = VolumeRuntimeState::new();
 
         let result =
             execute_operation(mock_request(OperationKind::Rebind), &policy, &mut state).unwrap();
-        assert_eq!(result.status, OperationStatus::Reserved);
+        assert_eq!(result.status, OperationStatus::Accepted);
     }
 
     #[test]
-    fn test_recover_returns_reserved() {
+    fn test_recover_returns_accepted_in_p3b() {
         let mut policy = ManagedPolicy::default();
         policy.allow_recover = true;
         let mut state = VolumeRuntimeState::new();
 
         let result =
             execute_operation(mock_request(OperationKind::Recover), &policy, &mut state).unwrap();
-        assert_eq!(result.status, OperationStatus::Reserved);
+        assert_eq!(result.status, OperationStatus::Accepted);
     }
+
 
     #[test]
     fn test_no_secrets_in_json() {

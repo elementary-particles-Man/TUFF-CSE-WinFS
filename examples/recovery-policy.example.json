@@ -1,0 +1,11 @@
+{
+  "policy_id": "FIN-CSE-WINFS-RECOVERY-2026-001",
+  "allow_recovery_descriptor": true,
+  "allow_recovery_plan": true,
+  "require_recovery_key_fingerprint": true,
+  "require_reason_code": true,
+  "allow_raw_recovery_key_persistence": false,
+  "allow_plaintext_recovery": false,
+  "persist_raw_identifiers": false,
+  "audit_recovery_operations": true
+}

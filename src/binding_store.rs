@@ -2,6 +2,8 @@ use crate::binding::BindingDescriptor;
 use crate::export_manifest::{ExportManifest, ExportPlan};
 use crate::key_material::KeyDerivationPlan;
 use crate::layout;
+use crate::rebind_model::{RebindManifest, RebindPlan};
+use crate::recovery_key::{RecoveryKeyDescriptor, RecoveryPlan};
 use crate::runtime_session::RuntimeSession;
 use crate::volume_state::VolumeRuntimeState;
 use anyhow::Result;
@@ -35,8 +37,12 @@ impl BindingStore {
             "META/bindings",
             "META/states",
             "META/exports",
+            "META/rebind",
             "KEYS/plans",
             "KEYS/export-plans",
+            "KEYS/recovery",
+            "KEYS/recovery-plans",
+            "KEYS/rebind-plans",
             "JRN/runtime",
             "JRN",
         ];
@@ -185,5 +191,96 @@ impl BindingStore {
         let file = File::open(&path)?;
         let plan = serde_json::from_reader(file)?;
         Ok(Some(plan))
+    }
+
+    pub fn save_recovery_descriptor(&self, descriptor: &RecoveryKeyDescriptor) -> Result<()> {
+        let path = self.root.join(format!(
+            "KEYS/recovery/{}.recovery.json",
+            descriptor.recovery_id
+        ));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, descriptor)?;
+        Ok(())
+    }
+
+    pub fn load_recovery_descriptor(
+        &self,
+        recovery_id: &str,
+    ) -> Result<Option<RecoveryKeyDescriptor>> {
+        let path = self
+            .root
+            .join(format!("KEYS/recovery/{}.recovery.json", recovery_id));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let descriptor = serde_json::from_reader(file)?;
+        Ok(Some(descriptor))
+    }
+
+    pub fn save_recovery_plan(&self, plan: &RecoveryPlan) -> Result<()> {
+        let path = self.root.join(format!(
+            "KEYS/recovery-plans/{}.plan.json",
+            plan.recovery_plan_id
+        ));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, plan)?;
+        Ok(())
+    }
+
+    pub fn load_recovery_plan(&self, recovery_plan_id: &str) -> Result<Option<RecoveryPlan>> {
+        let path = self.root.join(format!(
+            "KEYS/recovery-plans/{}.plan.json",
+            recovery_plan_id
+        ));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let plan = serde_json::from_reader(file)?;
+        Ok(Some(plan))
+    }
+
+    pub fn save_rebind_plan(&self, plan: &RebindPlan) -> Result<()> {
+        let path = self.root.join(format!(
+            "KEYS/rebind-plans/{}.plan.json",
+            plan.rebind_plan_id
+        ));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, plan)?;
+        Ok(())
+    }
+
+    pub fn load_rebind_plan(&self, rebind_plan_id: &str) -> Result<Option<RebindPlan>> {
+        let path = self
+            .root
+            .join(format!("KEYS/rebind-plans/{}.plan.json", rebind_plan_id));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let plan = serde_json::from_reader(file)?;
+        Ok(Some(plan))
+    }
+
+    pub fn save_rebind_manifest(&self, manifest: &RebindManifest) -> Result<()> {
+        let path = self
+            .root
+            .join(format!("META/rebind/{}.manifest.json", manifest.rebind_id));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, manifest)?;
+        Ok(())
+    }
+
+    pub fn load_rebind_manifest(&self, rebind_id: &str) -> Result<Option<RebindManifest>> {
+        let path = self
+            .root
+            .join(format!("META/rebind/{}.manifest.json", rebind_id));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let manifest = serde_json::from_reader(file)?;
+        Ok(Some(manifest))
     }
 }

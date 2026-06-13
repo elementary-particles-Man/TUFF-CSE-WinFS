@@ -71,27 +71,34 @@ The project is currently in the **P2A** phase. This stage establishes the logica
 -   **Binding Model:** Defines structures for `BindingPolicy`, `BindingDescriptor`, and `KeyDerivationPlan`.
 -   **Strict Separation:** `ManagedPolicy` (for operation authorization) and `BindingPolicy` (for key material constraints) are separated.
 -   **No Raw Secrets:** Ensures that raw TPM identities, host UUIDs, device serials, and generated keys are never persisted, displayed, or logged. Only salted fingerprints and descriptor IDs are retained.
--   **Single-Host State (P2B legacy):** Binding descriptors, derivation plans, and volume states are persisted to disk under `ProgramData`, enabling state-aware management.
+-   **Operation Clarity:** Explicitly separates `unlock` (local usage), `export` (re-sealing for external transfer), `eject` (safe removal), `rebind` (ownership boundary transfer), and `recover` (restoring safety boundaries).
 
-## Current Phase: P3A (Managed Export Manifest Boundary)
+## Current Phase: P3B (Recovery Key / Rebind Model Boundary)
 
-The project is currently in the **P3A** phase. This stage introduces the boundary for managed data exports, distinguishing between local usage (`unlock`) and transfer-oriented operations (`export`).
+The project is currently in the **P3B** phase. This stage defines the contract for volume recovery and ownership transfer (rebind) without executing actual cryptographic restorations or host migrations.
 
-### P3A Highlights:
--   **Export Manifests:** Defines `ExportPolicy`, `ExportRecipient`, `ExportPlan`, and `ExportManifest` to manage the lifecycle of data handovers.
--   **Managed Export Boundary:** The `export` command now generates detailed manifest and plan files under `ProgramData\TUFF-CSE-WinFS\devices\META\exports\`.
--   **Operation Clarity:** Explicitly separates `unlock` (local usage), `export` (re-sealing for external transfer), `eject` (safe removal), and `rebind` (ownership boundary transfer).
--   **No Secret Exposure:** Ensures that recipient private keys and real key material are never handled or persisted. Manifests contain recipient IDs and key fingerprints for validation.
+### P3B Highlights:
+-   **Recovery Model:** Defines `RecoveryPolicy`, `RecoveryKeyDescriptor`, and `RecoveryPlan`. The `recover` command now generates a recovery plan based on a provided key fingerprint.
+-   **Rebind Model:** Defines `RebindPolicy`, `RebindPlan`, and `RebindManifest`. The `rebind` command generates a rebind plan/manifest to prepare for host ownership transfer.
+-   **Strict Boundaries:** Separates the *plan* (metadata generation) from the *action* (actual key restoration). P3B focuses entirely on the plan and journal recording.
+-   **No Secret Persistence:** Ensures that raw recovery keys and raw host identifiers are never persisted. Only fingerprints and plan IDs are used in manifests and journals.
 
-*Note: P3A focuses on the export contract and metadata. It does not implement actual data copying, re-sealing, recipient public-key encryption, or rebind/recover logic (planned for P3B/P3C).*
+*Note: P3B focuses on the recovery/rebind contract. It does not implement actual TPM interaction, cryptographic key restoration, rebind descriptor replacement, AD/KMS/HSM/quorum integration (planned for P5/P6).*
 
-### Export Example
-To generate an export plan and manifest for a bound volume:
+### Recovery Plan Example
+To generate a recovery plan for a bound volume:
 ```powershell
-cargo run --bin tuff-cse-winfsctl -- export --volume D: --recipient RECIPIENT-ID-001 --recipient-key-fp FP-ABCD-1234
+cargo run --bin tuff-cse-winfsctl -- recover --volume D: --recovery-key-fp RK-FP-001 --reason LOST_HOST
+```
+
+### Rebind Plan Example
+To generate a rebind manifest for transfer:
+```powershell
+cargo run --bin tuff-cse-winfsctl -- rebind --volume D: --new-host-fp HOST-FP-NEW-001 --reason DEVICE_UPGRADE
 ```
 
 ### Recovery Example
+
 
 To check and recover stale volume states:
 ```powershell

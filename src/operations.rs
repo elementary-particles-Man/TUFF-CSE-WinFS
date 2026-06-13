@@ -92,13 +92,13 @@ pub fn execute_operation(
     }
 
     match request.kind {
-        OperationKind::Status | OperationKind::Audit | OperationKind::Export => {
+        OperationKind::Status
+        | OperationKind::Audit
+        | OperationKind::Export
+        | OperationKind::Recover
+        | OperationKind::Rebind => {
             status = OperationStatus::Accepted;
             reason = "Success".to_string();
-        }
-        OperationKind::Rebind | OperationKind::Recover => {
-            status = OperationStatus::Reserved;
-            reason = "RESERVED_NOT_IMPLEMENTED".to_string();
         }
         OperationKind::Bind => {
             if previous_state == VolumeBindingState::Unregistered {
@@ -303,9 +303,12 @@ pub fn execute_managed_operation(
     Ok(result)
 }
 
+use crate::rebind_model::{self, RebindPolicy};
+use crate::recovery_key::{self, RecoveryPolicy};
+
 pub fn execute_export_operation(
     request: OperationRequest,
-    _policy: &ManagedPolicy,
+    policy: &ManagedPolicy,
     export_policy: &export_policy::ExportPolicy,
     store: &BindingStore,
     recipient: ExportRecipient,
@@ -380,5 +383,154 @@ pub fn execute_export_operation(
         state.current,
         state.current,
         format!("Export manifest generated: {}", manifest.manifest_id),
+    ))
+}
+
+pub fn execute_recover_operation(
+    request: OperationRequest,
+    policy: &ManagedPolicy,
+    recovery_policy: &RecoveryPolicy,
+    store: &BindingStore,
+    recovery_key_fingerprint: String,
+    reason_code: String,
+) -> Result<OperationResult> {
+    let state = store.load_volume_state(&request.volume)?;
+    let dummy_hash = BindingStore::volume_hash(&request.volume);
+
+    if state.current == VolumeBindingState::Unregistered {
+        return Ok(build_result(
+            &request,
+            OperationStatus::Rejected,
+            state.current,
+            state.current,
+            "Invalid source state for recover".to_string(),
+        ));
+    }
+
+    let record_template = crate::operation_journal::OperationJournalRecord {
+        seq: 0,
+        phase: crate::operation_journal::OperationJournalPhase::Begin,
+        operation_id: request.operation_id.clone(),
+        kind: OperationKind::Recover,
+        volume: request.volume.clone(),
+        requested_by: request.requested_by.clone(),
+        result_status: OperationStatus::Accepted,
+        previous_state: state.current,
+        next_state: state.current,
+        descriptor_id: None,
+        plan_id: None,
+        session_id: None,
+        recovery_reason: Some(reason_code.clone()),
+        reason: "Generating recovery plan".to_string(),
+        timestamp: request.timestamp,
+    };
+
+    let _ = crate::operation_journal::append_begin_record(
+        store.root_path(),
+        &dummy_hash,
+        record_template.clone(),
+    );
+
+    let descriptor = recovery_key::build_recovery_descriptor(
+        store,
+        &request.volume,
+        recovery_policy,
+        recovery_key_fingerprint,
+    )?;
+    let plan =
+        recovery_key::build_recovery_plan(&descriptor, reason_code, request.operation_id.clone());
+
+    store.save_recovery_descriptor(&descriptor)?;
+    store.save_recovery_plan(&plan)?;
+
+    let _ = crate::operation_journal::append_commit_record(
+        store.root_path(),
+        &dummy_hash,
+        record_template,
+    );
+
+    Ok(build_result(
+        &request,
+        OperationStatus::Accepted,
+        state.current,
+        state.current,
+        format!("Recovery plan generated: {}", plan.recovery_plan_id),
+    ))
+}
+
+pub fn execute_rebind_operation(
+    request: OperationRequest,
+    policy: &ManagedPolicy,
+    rebind_policy: &RebindPolicy,
+    store: &BindingStore,
+    new_host_fingerprint: String,
+    new_host_label: Option<String>,
+    reason_code: String,
+) -> Result<OperationResult> {
+    let state = store.load_volume_state(&request.volume)?;
+    let dummy_hash = BindingStore::volume_hash(&request.volume);
+
+    if state.current == VolumeBindingState::Unregistered
+        || state.current == VolumeBindingState::RecoveryRequired
+    {
+        return Ok(build_result(
+            &request,
+            OperationStatus::Rejected,
+            state.current,
+            state.current,
+            "Invalid source state for rebind".to_string(),
+        ));
+    }
+
+    let record_template = crate::operation_journal::OperationJournalRecord {
+        seq: 0,
+        phase: crate::operation_journal::OperationJournalPhase::Begin,
+        operation_id: request.operation_id.clone(),
+        kind: OperationKind::Rebind,
+        volume: request.volume.clone(),
+        requested_by: request.requested_by.clone(),
+        result_status: OperationStatus::Accepted,
+        previous_state: state.current,
+        next_state: state.current,
+        descriptor_id: None,
+        plan_id: None,
+        session_id: None,
+        recovery_reason: Some(reason_code.clone()),
+        reason: "Generating rebind plan".to_string(),
+        timestamp: request.timestamp,
+    };
+
+    let _ = crate::operation_journal::append_begin_record(
+        store.root_path(),
+        &dummy_hash,
+        record_template.clone(),
+    );
+
+    let plan = rebind_model::build_rebind_plan(
+        store,
+        &request.volume,
+        rebind_policy,
+        new_host_fingerprint,
+        new_host_label,
+        reason_code,
+        request.operation_id.clone(),
+    )?;
+    let manifest = rebind_model::build_rebind_manifest(&plan);
+
+    store.save_rebind_plan(&plan)?;
+    store.save_rebind_manifest(&manifest)?;
+
+    let _ = crate::operation_journal::append_commit_record(
+        store.root_path(),
+        &dummy_hash,
+        record_template,
+    );
+
+    Ok(build_result(
+        &request,
+        OperationStatus::Accepted,
+        state.current,
+        state.current,
+        format!("Rebind manifest generated: {}", manifest.rebind_id),
     ))
 }

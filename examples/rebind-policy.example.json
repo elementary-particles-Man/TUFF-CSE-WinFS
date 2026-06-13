@@ -1,0 +1,10 @@
+{
+  "policy_id": "FIN-CSE-WINFS-REBIND-2026-001",
+  "allow_rebind_plan": true,
+  "require_new_host_fingerprint": true,
+  "require_reason_code": true,
+  "allow_same_host_rebind": false,
+  "allow_binding_descriptor_replacement": false,
+  "persist_raw_identifiers": false,
+  "audit_rebind_operations": true
+}
