@@ -135,7 +135,6 @@ mod tests {
         assert_eq!(result.status, OperationStatus::Accepted);
     }
 
-
     #[test]
     fn test_no_secrets_in_json() {
         let req = mock_request(OperationKind::Bind);
