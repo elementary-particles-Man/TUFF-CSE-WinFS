@@ -2,6 +2,8 @@ use crate::binding::BindingDescriptor;
 use crate::export_manifest::{ExportManifest, ExportPlan};
 use crate::key_material::KeyDerivationPlan;
 use crate::layout;
+use crate::local_approval::{LocalApprovalDecision, LocalApprovalRequest};
+use crate::local_policy::LocalPolicy;
 use crate::manual_flow::ManualFlowRecord;
 use crate::rebind_model::{RebindManifest, RebindPlan};
 use crate::recovery_key::{RecoveryKeyDescriptor, RecoveryPlan};
@@ -39,6 +41,7 @@ impl BindingStore {
             "META/states",
             "META/exports",
             "META/rebind",
+            "META/local-policy",
             "KEYS/plans",
             "KEYS/export-plans",
             "KEYS/recovery",
@@ -46,6 +49,7 @@ impl BindingStore {
             "KEYS/rebind-plans",
             "JRN/runtime",
             "JRN/manual",
+            "JRN/approvals",
             "JRN",
         ];
         for d in dirs {
@@ -308,5 +312,74 @@ impl BindingStore {
         let file = File::open(&path)?;
         let record = serde_json::from_reader(file)?;
         Ok(Some(record))
+    }
+
+    pub fn save_local_policy(&self, policy: &LocalPolicy) -> Result<()> {
+        let path = self.root.join(format!(
+            "META/local-policy/{}.policy.json",
+            policy.policy_id
+        ));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, policy)?;
+        Ok(())
+    }
+
+    pub fn load_local_policy(&self, policy_id: &str) -> Result<Option<LocalPolicy>> {
+        let path = self
+            .root
+            .join(format!("META/local-policy/{}.policy.json", policy_id));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let policy = serde_json::from_reader(file)?;
+        Ok(Some(policy))
+    }
+
+    pub fn save_approval_request(&self, request: &LocalApprovalRequest) -> Result<()> {
+        let path = self.root.join(format!(
+            "JRN/approvals/{}.request.json",
+            request.approval_id
+        ));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, request)?;
+        Ok(())
+    }
+
+    pub fn load_approval_request(&self, approval_id: &str) -> Result<Option<LocalApprovalRequest>> {
+        let path = self
+            .root
+            .join(format!("JRN/approvals/{}.request.json", approval_id));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let request = serde_json::from_reader(file)?;
+        Ok(Some(request))
+    }
+
+    pub fn save_approval_decision(&self, decision: &LocalApprovalDecision) -> Result<()> {
+        let path = self.root.join(format!(
+            "JRN/approvals/{}.decision.json",
+            decision.approval_id
+        ));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, decision)?;
+        Ok(())
+    }
+
+    pub fn load_approval_decision(
+        &self,
+        approval_id: &str,
+    ) -> Result<Option<LocalApprovalDecision>> {
+        let path = self
+            .root
+            .join(format!("JRN/approvals/{}.decision.json", approval_id));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let decision = serde_json::from_reader(file)?;
+        Ok(Some(decision))
     }
 }

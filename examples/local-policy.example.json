@@ -1,0 +1,12 @@
+{
+  "policy_id": "FIN-CSE-WINFS-LOCAL-2026-001",
+  "require_local_admin_for_export": true,
+  "require_local_admin_for_rebind": true,
+  "require_local_admin_for_recover": true,
+  "require_local_admin_for_manual_complete": true,
+  "require_local_admin_for_manual_cancel": true,
+  "approval_ttl_seconds": 900,
+  "allow_self_approval": false,
+  "persist_raw_admin_identity": false,
+  "audit_local_approval": true
+}

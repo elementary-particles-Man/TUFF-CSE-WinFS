@@ -11,7 +11,27 @@ mod tests {
         let kind = OperationKind::Bind;
         let json = serde_json::to_string(&kind).unwrap();
         assert_eq!(json, "\"Bind\"");
+    }
 
+    #[test]
+    fn test_local_approval_status_serializes() {
+        use tuff_cse_winfs::local_approval::LocalApprovalStatus;
+        let status = LocalApprovalStatus::Requested;
+        let json = serde_json::to_string(&status).unwrap();
+        assert_eq!(json, "\"Requested\"");
+    }
+
+    #[test]
+    fn test_local_operation_class_serializes() {
+        use tuff_cse_winfs::local_policy::LocalOperationClass;
+        let class = LocalOperationClass::Export;
+        let json = serde_json::to_string(&class).unwrap();
+        assert_eq!(json, "\"Export\"");
+    }
+
+    #[test]
+    fn test_operation_kind_deserializes() {
+        let json = "\"Bind\"";
         let deserialized: OperationKind = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized, OperationKind::Bind);
     }

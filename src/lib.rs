@@ -8,6 +8,8 @@ pub mod export_policy;
 pub mod install;
 pub mod key_material;
 pub mod layout;
+pub mod local_approval;
+pub mod local_policy;
 pub mod managed_policy;
 pub mod manual_flow;
 pub mod operation_journal;

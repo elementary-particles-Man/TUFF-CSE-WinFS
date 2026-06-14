@@ -128,6 +128,29 @@ cargo run --bin tuff-cse-winfsctl -- export --volume D: --complete-plan <EXPORT_
 cargo run --bin tuff-cse-winfsctl -- recover --volume D: --cancel-plan <RECO_PLAN_ID> --confirm CONFIRM-CANCEL-001 --reason USER_CANCELLED
 ```
 
+## Current Phase: P4A (Local Policy / Local Admin Approval Boundary)
+
+The project is currently in the **P4A** phase. This stage establishes the model and structural boundary for local administrator approvals.
+
+### P4A Highlights:
+-   **Approval Model:** Defines `LocalPolicy`, `LocalApprovalRequest`, and `LocalApprovalDecision` to manage the local approval lifecycle.
+-   **Approval Subcommands:** Adds `approval request`, `approval approve`, `approval deny`, and `approval status` to the CLI.
+-   **Security Boundary:** Ensures that no raw Windows SIDs, credentials, or authentication tokens are persisted. All principals are managed via salted fingerprints.
+-   **Audit Integration:** Approval requests and decisions are recorded in the management store and referenced in the operation journal.
+-   **Policy Enforcement Boundary:** Prepares for enforcing local admin approval for sensitive operations like `export`, `rebind`, and `recover`.
+
+*Note: P4A focuses on the logical boundary. Actual Windows SID verification, UAC integration (P4B), and signed audit journals (P4C) are planned for subsequent P4 sub-phases.*
+
+### Requesting an Approval
+```powershell
+cargo run --bin tuff-cse-winfsctl -- approval request --operation Export --target-plan PLAN-001 --reason MANAGED_EXPORT --principal-fp USER-FP-001
+```
+
+### Approving a Request
+```powershell
+cargo run --bin tuff-cse-winfsctl -- approval approve --approval-id APPR-001 --admin-fp ADMIN-FP-001 --reason APPROVED
+```
+
 ## CI & Validation
 
 This project uses GitHub Actions to ensure cross-platform compatibility and code quality. The CI pipeline runs on both `ubuntu-latest` and `windows-latest` for every push and pull request.

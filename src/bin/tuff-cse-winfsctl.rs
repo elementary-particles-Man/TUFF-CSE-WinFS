@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use tuff_cse_winfs::binding::{self, BindingInputSnapshot};
@@ -7,6 +7,8 @@ use tuff_cse_winfs::binding_store::BindingStore;
 use tuff_cse_winfs::export_manifest::ExportRecipient;
 use tuff_cse_winfs::export_policy;
 use tuff_cse_winfs::key_material;
+use tuff_cse_winfs::local_approval::{self, LocalApprovalStatus};
+use tuff_cse_winfs::local_policy::{self, LocalOperationClass};
 use tuff_cse_winfs::managed_policy::{self, ManagedPolicy};
 use tuff_cse_winfs::manual_flow::ManualFlowKind;
 use tuff_cse_winfs::operation_journal::{self};
@@ -101,6 +103,8 @@ enum Commands {
         #[arg(long)]
         export_policy: Option<PathBuf>,
         #[arg(long)]
+        local_policy: Option<PathBuf>,
+        #[arg(long)]
         manifest_out: Option<PathBuf>,
         #[arg(long, hide = true)]
         store_root: Option<PathBuf>,
@@ -130,6 +134,8 @@ enum Commands {
         #[arg(long)]
         rebind_policy: Option<PathBuf>,
         #[arg(long)]
+        local_policy: Option<PathBuf>,
+        #[arg(long)]
         manifest_out: Option<PathBuf>,
         #[arg(long, hide = true)]
         store_root: Option<PathBuf>,
@@ -153,6 +159,8 @@ enum Commands {
         #[arg(long)]
         recovery_policy: Option<PathBuf>,
         #[arg(long)]
+        local_policy: Option<PathBuf>,
+        #[arg(long)]
         plan_out: Option<PathBuf>,
         #[arg(long, hide = true)]
         store_root: Option<PathBuf>,
@@ -164,6 +172,67 @@ enum Commands {
         cancel_plan: Option<String>,
         #[arg(long)]
         confirm: Option<String>,
+    },
+    /// Approval management
+    Approval {
+        #[command(subcommand)]
+        sub: ApprovalCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum ApprovalCommands {
+    /// Request a local administrator approval
+    Request {
+        #[arg(long)]
+        operation: String, // e.g. Export, Recover, Rebind
+        #[arg(long)]
+        target_plan: String,
+        #[arg(long)]
+        reason: String,
+        #[arg(long)]
+        principal_fp: String,
+        #[arg(long)]
+        local_policy: Option<PathBuf>,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(short, long)]
+        json: bool,
+    },
+    /// Approve a pending request
+    Approve {
+        #[arg(long)]
+        approval_id: String,
+        #[arg(long)]
+        admin_fp: String,
+        #[arg(long)]
+        reason: String,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(short, long)]
+        json: bool,
+    },
+    /// Deny a pending request
+    Deny {
+        #[arg(long)]
+        approval_id: String,
+        #[arg(long)]
+        admin_fp: String,
+        #[arg(long)]
+        reason: String,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(short, long)]
+        json: bool,
+    },
+    /// Check the status of an approval request
+    Status {
+        #[arg(long)]
+        approval_id: String,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(short, long)]
+        json: bool,
     },
 }
 
@@ -274,6 +343,7 @@ fn handle_export(
     recipient_id: Option<String>,
     recipient_key_fp: Option<String>,
     export_policy_path: Option<PathBuf>,
+    _local_policy_path: Option<PathBuf>,
     manifest_out: Option<PathBuf>,
     store_root: Option<PathBuf>,
     json: bool,
@@ -348,8 +418,8 @@ fn handle_export(
         return Ok(());
     }
 
-    let rid = recipient_id.ok_or_else(|| anyhow::anyhow!("recipient required"))?;
-    let rkfp = recipient_key_fp.ok_or_else(|| anyhow::anyhow!("recipient-key-fp required"))?;
+    let rid = recipient_id.ok_or_else(|| anyhow!("recipient required"))?;
+    let rkfp = recipient_key_fp.ok_or_else(|| anyhow!("recipient-key-fp required"))?;
 
     let export_policy = match export_policy_path {
         Some(p) => export_policy::load_export_policy(p)?,
@@ -416,6 +486,7 @@ fn handle_recover(
     recovery_key_fp: Option<String>,
     reason: Option<String>,
     recovery_policy_path: Option<PathBuf>,
+    _local_policy_path: Option<PathBuf>,
     plan_out: Option<PathBuf>,
     store_root: Option<PathBuf>,
     json: bool,
@@ -457,8 +528,8 @@ fn handle_recover(
         return Ok(());
     }
 
-    let fp = recovery_key_fp.ok_or_else(|| anyhow::anyhow!("recovery-key-fp required"))?;
-    let rsn = reason.ok_or_else(|| anyhow::anyhow!("reason required"))?;
+    let fp = recovery_key_fp.ok_or_else(|| anyhow!("recovery-key-fp required"))?;
+    let rsn = reason.ok_or_else(|| anyhow!("reason required"))?;
 
     let recovery_policy = match recovery_policy_path {
         Some(p) => recovery_key::load_recovery_policy(p)?,
@@ -512,6 +583,7 @@ fn handle_rebind(
     new_host_label: Option<String>,
     reason: Option<String>,
     rebind_policy_path: Option<PathBuf>,
+    _local_policy_path: Option<PathBuf>,
     manifest_out: Option<PathBuf>,
     store_root: Option<PathBuf>,
     json: bool,
@@ -553,8 +625,8 @@ fn handle_rebind(
         return Ok(());
     }
 
-    let fp = new_host_fp.ok_or_else(|| anyhow::anyhow!("new-host-fp required"))?;
-    let rsn = reason.ok_or_else(|| anyhow::anyhow!("reason required"))?;
+    let fp = new_host_fp.ok_or_else(|| anyhow!("new-host-fp required"))?;
+    let rsn = reason.ok_or_else(|| anyhow!("reason required"))?;
 
     let rebind_policy = match rebind_policy_path {
         Some(p) => rebind_model::load_rebind_policy(p)?,
@@ -606,6 +678,119 @@ fn handle_rebind(
         }
     }
 
+    Ok(())
+}
+
+fn handle_approval(sub: ApprovalCommands) -> Result<()> {
+    match sub {
+        ApprovalCommands::Request {
+            operation,
+            target_plan,
+            reason,
+            principal_fp,
+            local_policy,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            let policy = match local_policy {
+                Some(p) => local_policy::load_local_policy(p)?,
+                None => local_policy::default_local_policy(),
+            };
+
+            let op_class = match operation.as_str() {
+                "Export" => LocalOperationClass::Export,
+                "Recover" => LocalOperationClass::Recover,
+                "Rebind" => LocalOperationClass::Rebind,
+                _ => return Err(anyhow!("Unsupported operation class for approval request")),
+            };
+
+            let request = local_approval::build_approval_request(
+                &policy,
+                op_class,
+                target_plan,
+                "VOLUME-HASH-STUB".to_string(), // In real implementation, would look up volume hash from plan
+                principal_fp,
+                reason,
+            );
+
+            store.save_approval_request(&request)?;
+
+            if json {
+                println!("{}", serde_json::to_string(&request)?);
+            } else {
+                println!("Approval Request Created: {}", request.approval_id);
+                println!("Expires At: {}", request.expires_at);
+            }
+        }
+        ApprovalCommands::Approve {
+            approval_id,
+            admin_fp,
+            reason,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            let request = store
+                .load_approval_request(&approval_id)?
+                .ok_or_else(|| anyhow!("Approval request not found"))?;
+
+            let (updated_request, decision) =
+                local_approval::approve_request(&request, admin_fp, reason);
+
+            store.save_approval_request(&updated_request)?;
+            store.save_approval_decision(&decision)?;
+
+            if json {
+                println!("{}", serde_json::to_string(&decision)?);
+            } else {
+                println!("Approval request {} approved.", approval_id);
+            }
+        }
+        ApprovalCommands::Deny {
+            approval_id,
+            admin_fp,
+            reason,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            let request = store
+                .load_approval_request(&approval_id)?
+                .ok_or_else(|| anyhow!("Approval request not found"))?;
+
+            let (updated_request, decision) =
+                local_approval::deny_request(&request, admin_fp, reason);
+
+            store.save_approval_request(&updated_request)?;
+            store.save_approval_decision(&decision)?;
+
+            if json {
+                println!("{}", serde_json::to_string(&decision)?);
+            } else {
+                println!("Approval request {} denied.", approval_id);
+            }
+        }
+        ApprovalCommands::Status {
+            approval_id,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            let request = store
+                .load_approval_request(&approval_id)?
+                .ok_or_else(|| anyhow!("Approval request not found"))?;
+
+            if json {
+                println!("{}", serde_json::to_string(&request)?);
+            } else {
+                println!("Approval ID: {}", request.approval_id);
+                println!("Status: {:?}", request.status);
+                println!("Operation: {:?}", request.operation_class);
+                println!("Target Plan: {}", request.target_plan_id);
+            }
+        }
+    }
     Ok(())
 }
 
@@ -719,6 +904,7 @@ fn main() -> Result<()> {
             recipient,
             recipient_key_fp,
             export_policy,
+            local_policy,
             manifest_out,
             store_root,
             json,
@@ -732,6 +918,7 @@ fn main() -> Result<()> {
             recipient,
             recipient_key_fp,
             export_policy,
+            local_policy,
             manifest_out,
             store_root,
             json,
@@ -747,6 +934,7 @@ fn main() -> Result<()> {
             new_host_label,
             reason,
             rebind_policy,
+            local_policy,
             manifest_out,
             store_root,
             json,
@@ -759,6 +947,7 @@ fn main() -> Result<()> {
             new_host_label,
             reason,
             rebind_policy,
+            local_policy,
             manifest_out,
             store_root,
             json,
@@ -771,6 +960,7 @@ fn main() -> Result<()> {
             recovery_key_fp,
             reason,
             recovery_policy,
+            local_policy,
             plan_out,
             store_root,
             json,
@@ -782,6 +972,7 @@ fn main() -> Result<()> {
             recovery_key_fp,
             reason,
             recovery_policy,
+            local_policy,
             plan_out,
             store_root,
             json,
@@ -789,6 +980,7 @@ fn main() -> Result<()> {
             cancel_plan,
             confirm,
         )?,
+        Commands::Approval { sub } => handle_approval(sub)?,
     }
 
     Ok(())
