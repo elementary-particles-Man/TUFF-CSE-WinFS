@@ -5,7 +5,6 @@ mod tests {
     use tuff_cse_winfs::binding_store::BindingStore;
     use tuff_cse_winfs::local_approval::{self, LocalApprovalStatus};
     use tuff_cse_winfs::local_policy::{self, LocalOperationClass};
-    use tuff_cse_winfs::operation_journal::{self};
 
     fn setup_store() -> (tempfile::TempDir, BindingStore) {
         let dir = tempdir().unwrap();
@@ -44,7 +43,7 @@ mod tests {
 
     #[test]
     fn test_approval_request_lifecycle() {
-        let (dir, store) = setup_store();
+        let (_dir, store) = setup_store();
         let policy = local_policy::default_local_policy();
 
         let request = local_approval::build_approval_request(

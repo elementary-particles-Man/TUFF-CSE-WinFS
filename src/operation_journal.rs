@@ -2,12 +2,11 @@ use crate::operations::{OperationKind, OperationStatus};
 use crate::volume_state::VolumeBindingState;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::fs::{self, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OperationJournalPhase {
     Begin,
     Commit,
@@ -38,122 +37,91 @@ pub struct OperationJournalRecord {
     pub timestamp: u64,
 }
 
-pub fn append_record(
-    root: &Path,
+pub fn append_begin_record(
+    store_root: &Path,
     volume_hash: &str,
     mut record: OperationJournalRecord,
 ) -> Result<()> {
-    let mut jrn_dir = root.to_path_buf();
-    jrn_dir.push("JRN");
-
-    if !jrn_dir.exists() {
-        fs::create_dir_all(&jrn_dir)?;
-    }
-
-    let file_path = jrn_dir.join(format!("operations-{}.jsonl", volume_hash));
-
-    let mut current_seq = 0;
-    if file_path.exists() {
-        let file = fs::File::open(&file_path)?;
-        let reader = BufReader::new(file);
-        for line in reader.lines() {
-            if let Ok(l) = line {
-                if let Ok(r) = serde_json::from_str::<OperationJournalRecord>(&l) {
-                    current_seq = r.seq;
-                }
-            }
-        }
-    }
-
-    record.seq = current_seq + 1;
-    record.timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&file_path)?;
-
-    let json_line = serde_json::to_string(&record)?;
-    writeln!(file, "{}", json_line)?;
-
-    Ok(())
-}
-
-pub fn append_begin_record(
-    root: &Path,
-    volume_hash: &str,
-    record: OperationJournalRecord,
-) -> Result<()> {
-    let mut rec = record;
-    rec.phase = OperationJournalPhase::Begin;
-    append_record(root, volume_hash, rec)
+    record.phase = OperationJournalPhase::Begin;
+    append_record(store_root, volume_hash, record)
 }
 
 pub fn append_commit_record(
-    root: &Path,
+    store_root: &Path,
     volume_hash: &str,
-    record: OperationJournalRecord,
+    mut record: OperationJournalRecord,
 ) -> Result<()> {
-    let mut rec = record;
-    rec.phase = OperationJournalPhase::Commit;
-    append_record(root, volume_hash, rec)
+    record.phase = OperationJournalPhase::Commit;
+    append_record(store_root, volume_hash, record)
 }
 
 pub fn append_abort_record(
-    root: &Path,
+    store_root: &Path,
     volume_hash: &str,
-    record: OperationJournalRecord,
+    mut record: OperationJournalRecord,
 ) -> Result<()> {
-    let mut rec = record;
-    rec.phase = OperationJournalPhase::Abort;
-    append_record(root, volume_hash, rec)
+    record.phase = OperationJournalPhase::Abort;
+    append_record(store_root, volume_hash, record)
 }
 
 pub fn append_recovery_record(
-    root: &Path,
+    store_root: &Path,
+    volume_hash: &str,
+    mut record: OperationJournalRecord,
+) -> Result<()> {
+    record.phase = OperationJournalPhase::Recovery;
+    append_record(store_root, volume_hash, record)
+}
+
+fn append_record(
+    store_root: &Path,
     volume_hash: &str,
     record: OperationJournalRecord,
 ) -> Result<()> {
-    let mut rec = record;
-    rec.phase = OperationJournalPhase::Recovery;
-    append_record(root, volume_hash, rec)
+    let path = store_root.join(format!("JRN/operations-{}.jsonl", volume_hash));
+    let mut file = OpenOptions::new().create(true).append(true).open(path)?;
+
+    let json = serde_json::to_string(&record)?;
+    writeln!(file, "{}", json)?;
+    Ok(())
 }
 
-pub fn read_journal_records(root: &Path, volume_hash: &str) -> Result<Vec<OperationJournalRecord>> {
-    let mut jrn_dir = root.to_path_buf();
-    jrn_dir.push("JRN");
-    let file_path = jrn_dir.join(format!("operations-{}.jsonl", volume_hash));
-
-    if !file_path.exists() {
+pub fn read_journal_records(
+    store_root: &Path,
+    volume_hash: &str,
+) -> Result<Vec<OperationJournalRecord>> {
+    let path = store_root.join(format!("JRN/operations-{}.jsonl", volume_hash));
+    if !path.exists() {
         return Ok(Vec::new());
     }
-
-    let file = fs::File::open(&file_path)?;
-    let reader = BufReader::new(file);
+    let content = std::fs::read_to_string(path)?;
     let mut records = Vec::new();
-
-    for line in reader.lines() {
-        let line = line?;
+    for line in content.lines() {
         if line.trim().is_empty() {
             continue;
         }
-        let record: OperationJournalRecord = serde_json::from_str(&line)?;
+        let record: OperationJournalRecord = serde_json::from_str(line)?;
         records.push(record);
     }
-
     Ok(records)
 }
 
 pub fn detect_uncommitted_begin(
     records: &[OperationJournalRecord],
 ) -> Option<&OperationJournalRecord> {
-    if let Some(last) = records.last() {
-        if last.phase == OperationJournalPhase::Begin {
-            return Some(last);
+    let mut last_begin = None;
+    for rec in records {
+        match rec.phase {
+            OperationJournalPhase::Begin => last_begin = Some(rec),
+            OperationJournalPhase::Commit | OperationJournalPhase::Abort => {
+                if let Some(begin) = last_begin {
+                    if begin.operation_id == rec.operation_id {
+                        last_begin = None;
+                    }
+                }
+            }
+            _ => {}
         }
     }
-    None
+    last_begin
 }

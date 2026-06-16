@@ -1,14 +1,16 @@
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tuff_cse_winfs::binding::{self, BindingInputSnapshot};
 use tuff_cse_winfs::binding_policy;
 use tuff_cse_winfs::binding_store::BindingStore;
 use tuff_cse_winfs::export_manifest::ExportRecipient;
 use tuff_cse_winfs::export_policy;
 use tuff_cse_winfs::key_material;
-use tuff_cse_winfs::local_approval::{self, LocalApprovalStatus};
+use tuff_cse_winfs::local_approval;
 use tuff_cse_winfs::local_policy::{self, LocalOperationClass};
+use tuff_cse_winfs::local_principal;
 use tuff_cse_winfs::managed_policy::{self, ManagedPolicy};
 use tuff_cse_winfs::manual_flow::ManualFlowKind;
 use tuff_cse_winfs::operation_journal::{self};
@@ -60,6 +62,10 @@ enum Commands {
         volume: String,
         #[arg(short, long)]
         policy: Option<PathBuf>,
+        #[arg(long)]
+        local_policy: Option<PathBuf>,
+        #[arg(long)]
+        approval_id: Option<String>,
         #[arg(long, hide = true)]
         store_root: Option<PathBuf>,
     },
@@ -78,6 +84,10 @@ enum Commands {
         volume: String,
         #[arg(short, long)]
         policy: Option<PathBuf>,
+        #[arg(long)]
+        local_policy: Option<PathBuf>,
+        #[arg(long)]
+        approval_id: Option<String>,
         #[arg(long, hide = true)]
         store_root: Option<PathBuf>,
     },
@@ -104,6 +114,8 @@ enum Commands {
         export_policy: Option<PathBuf>,
         #[arg(long)]
         local_policy: Option<PathBuf>,
+        #[arg(long)]
+        approval_id: Option<String>,
         #[arg(long)]
         manifest_out: Option<PathBuf>,
         #[arg(long, hide = true)]
@@ -136,6 +148,8 @@ enum Commands {
         #[arg(long)]
         local_policy: Option<PathBuf>,
         #[arg(long)]
+        approval_id: Option<String>,
+        #[arg(long)]
         manifest_out: Option<PathBuf>,
         #[arg(long, hide = true)]
         store_root: Option<PathBuf>,
@@ -161,6 +175,8 @@ enum Commands {
         #[arg(long)]
         local_policy: Option<PathBuf>,
         #[arg(long)]
+        approval_id: Option<String>,
+        #[arg(long)]
         plan_out: Option<PathBuf>,
         #[arg(long, hide = true)]
         store_root: Option<PathBuf>,
@@ -185,13 +201,15 @@ enum ApprovalCommands {
     /// Request a local administrator approval
     Request {
         #[arg(long)]
-        operation: String, // e.g. Export, Recover, Rebind
+        operation: String, // e.g. export, recover, rebind, unlock, eject
         #[arg(long)]
-        target_plan: String,
+        volume: Option<String>,
+        #[arg(long)]
+        target_plan: Option<String>,
         #[arg(long)]
         reason: String,
         #[arg(long)]
-        principal_fp: String,
+        principal_fp: Option<String>,
         #[arg(long)]
         local_policy: Option<PathBuf>,
         #[arg(long, hide = true)]
@@ -204,26 +222,26 @@ enum ApprovalCommands {
         #[arg(long)]
         approval_id: String,
         #[arg(long)]
-        admin_fp: String,
-        #[arg(long)]
         reason: String,
         #[arg(long, hide = true)]
         store_root: Option<PathBuf>,
         #[arg(short, long)]
         json: bool,
+        #[arg(long)]
+        dev_approver_fingerprint: Option<String>,
     },
     /// Deny a pending request
     Deny {
         #[arg(long)]
         approval_id: String,
         #[arg(long)]
-        admin_fp: String,
-        #[arg(long)]
         reason: String,
         #[arg(long, hide = true)]
         store_root: Option<PathBuf>,
         #[arg(short, long)]
         json: bool,
+        #[arg(long)]
+        dev_approver_fingerprint: Option<String>,
     },
     /// Check the status of an approval request
     Status {
@@ -254,17 +272,23 @@ fn handle_operation(
     kind: OperationKind,
     volume: String,
     policy_path: Option<PathBuf>,
+    local_policy_path: Option<PathBuf>,
+    approval_id: Option<String>,
     store_root: Option<PathBuf>,
 ) -> Result<()> {
     let policy = load_policy_or_default(policy_path)?;
+    let local_policy = match local_policy_path {
+        Some(p) => Some(local_policy::load_local_policy(p)?),
+        None => None,
+    };
     let store = open_store(store_root)?;
 
     let request = OperationRequest {
         operation_id: format!(
             "OP-{}-{}",
             kind as u32,
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_secs()
         ),
@@ -272,13 +296,15 @@ fn handle_operation(
         volume: volume.clone(),
         requested_by: "Admin".to_string(), // Mock
         policy_id: policy.policy_id.clone(),
-        timestamp: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        timestamp: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs(),
+        approval_id,
     };
 
-    let result = operations::execute_managed_operation(request.clone(), &policy, &store)?;
+    let result =
+        operations::execute_managed_operation(request, &policy, &store, local_policy.as_ref())?;
 
     println!("Operation: {:?}", kind);
     println!("Status: {:?}", result.status);
@@ -343,7 +369,8 @@ fn handle_export(
     recipient_id: Option<String>,
     recipient_key_fp: Option<String>,
     export_policy_path: Option<PathBuf>,
-    _local_policy_path: Option<PathBuf>,
+    local_policy_path: Option<PathBuf>,
+    approval_id: Option<String>,
     manifest_out: Option<PathBuf>,
     store_root: Option<PathBuf>,
     json: bool,
@@ -354,14 +381,18 @@ fn handle_export(
     reason_code: Option<String>,
 ) -> Result<()> {
     let policy = load_policy_or_default(None)?;
+    let local_policy = match local_policy_path {
+        Some(p) => local_policy::load_local_policy(p)?,
+        None => local_policy::default_local_policy(),
+    };
     let store = open_store(store_root)?;
 
     if let Some(target_plan_id) = complete_plan {
         let request = OperationRequest {
             operation_id: format!(
                 "OP-MCOMPLETE-{}",
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
                     .unwrap()
                     .as_secs()
             ),
@@ -369,10 +400,11 @@ fn handle_export(
             volume,
             requested_by: "Admin".to_string(),
             policy_id: "MANUAL-FLOW".to_string(),
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_secs(),
+            approval_id,
         };
         let result = operations::execute_manual_flow_operation(
             request,
@@ -381,6 +413,7 @@ fn handle_export(
             target_plan_id,
             confirm.unwrap_or_default(),
             reason_code.unwrap_or_default(),
+            &local_policy,
         )?;
         println!("Status: {:?}", result.status);
         println!("Reason: {}", result.reason);
@@ -391,8 +424,8 @@ fn handle_export(
         let request = OperationRequest {
             operation_id: format!(
                 "OP-MCANCEL-{}",
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
                     .unwrap()
                     .as_secs()
             ),
@@ -400,10 +433,11 @@ fn handle_export(
             volume,
             requested_by: "Admin".to_string(),
             policy_id: "MANUAL-FLOW".to_string(),
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_secs(),
+            approval_id,
         };
         let result = operations::execute_manual_flow_operation(
             request,
@@ -412,6 +446,7 @@ fn handle_export(
             target_plan_id,
             confirm.unwrap_or_default(),
             reason_code.unwrap_or_default(),
+            &local_policy,
         )?;
         println!("Status: {:?}", result.status);
         println!("Reason: {}", result.reason);
@@ -435,8 +470,8 @@ fn handle_export(
     let request = OperationRequest {
         operation_id: format!(
             "OP-EXPORT-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_secs()
         ),
@@ -444,10 +479,11 @@ fn handle_export(
         volume: volume.clone(),
         requested_by: "Admin".to_string(),
         policy_id: export_policy.policy_id.clone(),
-        timestamp: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        timestamp: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs(),
+        approval_id,
     };
 
     let result = operations::execute_export_operation(
@@ -457,6 +493,7 @@ fn handle_export(
         &store,
         recipient,
         require_manual_confirmation,
+        &local_policy,
     )?;
 
     if json {
@@ -486,7 +523,8 @@ fn handle_recover(
     recovery_key_fp: Option<String>,
     reason: Option<String>,
     recovery_policy_path: Option<PathBuf>,
-    _local_policy_path: Option<PathBuf>,
+    local_policy_path: Option<PathBuf>,
+    approval_id: Option<String>,
     plan_out: Option<PathBuf>,
     store_root: Option<PathBuf>,
     json: bool,
@@ -495,14 +533,18 @@ fn handle_recover(
     confirm: Option<String>,
 ) -> Result<()> {
     let policy = load_policy_or_default(None)?;
+    let local_policy = match local_policy_path {
+        Some(p) => local_policy::load_local_policy(p)?,
+        None => local_policy::default_local_policy(),
+    };
     let store = open_store(store_root)?;
 
     if let Some(target_plan_id) = complete_plan {
         let request = OperationRequest {
             operation_id: format!(
                 "OP-RECOVER-COMPLETE-{}",
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
                     .unwrap()
                     .as_secs()
             ),
@@ -510,10 +552,11 @@ fn handle_recover(
             volume,
             requested_by: "Admin".to_string(),
             policy_id: "MANUAL-FLOW".to_string(),
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_secs(),
+            approval_id,
         };
         let result = operations::execute_manual_flow_operation(
             request,
@@ -522,6 +565,7 @@ fn handle_recover(
             target_plan_id,
             confirm.unwrap_or_default(),
             "RECOVERY_CONFIRMED".to_string(),
+            &local_policy,
         )?;
         println!("Status: {:?}", result.status);
         println!("Reason: {}", result.reason);
@@ -539,8 +583,8 @@ fn handle_recover(
     let request = OperationRequest {
         operation_id: format!(
             "OP-RECOVER-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_secs()
         ),
@@ -548,14 +592,22 @@ fn handle_recover(
         volume: volume.clone(),
         requested_by: "Admin".to_string(),
         policy_id: recovery_policy.policy_id.clone(),
-        timestamp: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        timestamp: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs(),
+        approval_id,
     };
 
-    let result =
-        operations::execute_recover_operation(request, &policy, &recovery_policy, &store, fp, rsn)?;
+    let result = operations::execute_recover_operation(
+        request,
+        &policy,
+        &recovery_policy,
+        &store,
+        fp,
+        rsn,
+        &local_policy,
+    )?;
 
     if json {
         println!("{}", serde_json::to_string(&result)?);
@@ -583,7 +635,8 @@ fn handle_rebind(
     new_host_label: Option<String>,
     reason: Option<String>,
     rebind_policy_path: Option<PathBuf>,
-    _local_policy_path: Option<PathBuf>,
+    local_policy_path: Option<PathBuf>,
+    approval_id: Option<String>,
     manifest_out: Option<PathBuf>,
     store_root: Option<PathBuf>,
     json: bool,
@@ -592,14 +645,18 @@ fn handle_rebind(
     confirm: Option<String>,
 ) -> Result<()> {
     let policy = load_policy_or_default(None)?;
+    let local_policy = match local_policy_path {
+        Some(p) => local_policy::load_local_policy(p)?,
+        None => local_policy::default_local_policy(),
+    };
     let store = open_store(store_root)?;
 
     if let Some(target_plan_id) = complete_plan {
         let request = OperationRequest {
             operation_id: format!(
                 "OP-REBIND-COMPLETE-{}",
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
                     .unwrap()
                     .as_secs()
             ),
@@ -607,10 +664,11 @@ fn handle_rebind(
             volume,
             requested_by: "Admin".to_string(),
             policy_id: "MANUAL-FLOW".to_string(),
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_secs(),
+            approval_id,
         };
         let result = operations::execute_manual_flow_operation(
             request,
@@ -619,6 +677,7 @@ fn handle_rebind(
             target_plan_id,
             confirm.unwrap_or_default(),
             "REBIND_CONFIRMED".to_string(),
+            &local_policy,
         )?;
         println!("Status: {:?}", result.status);
         println!("Reason: {}", result.reason);
@@ -636,8 +695,8 @@ fn handle_rebind(
     let request = OperationRequest {
         operation_id: format!(
             "OP-REBIND-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
                 .unwrap()
                 .as_secs()
         ),
@@ -645,10 +704,11 @@ fn handle_rebind(
         volume: volume.clone(),
         requested_by: "Admin".to_string(),
         policy_id: rebind_policy.policy_id.clone(),
-        timestamp: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        timestamp: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs(),
+        approval_id,
     };
 
     let result = operations::execute_rebind_operation(
@@ -659,6 +719,7 @@ fn handle_rebind(
         fp,
         new_host_label,
         rsn,
+        &local_policy,
     )?;
 
     if json {
@@ -685,6 +746,7 @@ fn handle_approval(sub: ApprovalCommands) -> Result<()> {
     match sub {
         ApprovalCommands::Request {
             operation,
+            volume,
             target_plan,
             reason,
             principal_fp,
@@ -698,19 +760,34 @@ fn handle_approval(sub: ApprovalCommands) -> Result<()> {
                 None => local_policy::default_local_policy(),
             };
 
-            let op_class = match operation.as_str() {
-                "Export" => LocalOperationClass::Export,
-                "Recover" => LocalOperationClass::Recover,
-                "Rebind" => LocalOperationClass::Rebind,
+            let op_class = match operation.to_lowercase().as_str() {
+                "export" => LocalOperationClass::Export,
+                "recover" => LocalOperationClass::Recover,
+                "rebind" => LocalOperationClass::Rebind,
+                "unlock" => LocalOperationClass::Unlock,
+                "eject" => LocalOperationClass::Eject,
                 _ => return Err(anyhow!("Unsupported operation class for approval request")),
+            };
+
+            let p_fp = match principal_fp {
+                Some(fp) => fp,
+                None => {
+                    let provider = local_principal::get_default_provider();
+                    provider.get_current_principal()?.principal_fingerprint
+                }
+            };
+
+            let v_hash = match volume {
+                Some(v) => BindingStore::volume_hash(&v),
+                None => "VOLUME-HASH-STUB".to_string(),
             };
 
             let request = local_approval::build_approval_request(
                 &policy,
                 op_class,
-                target_plan,
-                "VOLUME-HASH-STUB".to_string(), // In real implementation, would look up volume hash from plan
-                principal_fp,
+                target_plan.unwrap_or_else(|| "N/A".to_string()),
+                v_hash,
+                p_fp,
                 reason,
             );
 
@@ -725,15 +802,23 @@ fn handle_approval(sub: ApprovalCommands) -> Result<()> {
         }
         ApprovalCommands::Approve {
             approval_id,
-            admin_fp,
             reason,
             store_root,
             json,
+            dev_approver_fingerprint,
         } => {
             let store = open_store(store_root)?;
             let request = store
                 .load_approval_request(&approval_id)?
                 .ok_or_else(|| anyhow!("Approval request not found"))?;
+
+            let admin_fp = match dev_approver_fingerprint {
+                Some(fp) => fp,
+                None => {
+                    let provider = local_principal::get_default_provider();
+                    provider.get_current_principal()?.principal_fingerprint
+                }
+            };
 
             let (updated_request, decision) =
                 local_approval::approve_request(&request, admin_fp, reason);
@@ -749,15 +834,23 @@ fn handle_approval(sub: ApprovalCommands) -> Result<()> {
         }
         ApprovalCommands::Deny {
             approval_id,
-            admin_fp,
             reason,
             store_root,
             json,
+            dev_approver_fingerprint,
         } => {
             let store = open_store(store_root)?;
             let request = store
                 .load_approval_request(&approval_id)?
                 .ok_or_else(|| anyhow!("Approval request not found"))?;
+
+            let admin_fp = match dev_approver_fingerprint {
+                Some(fp) => fp,
+                None => {
+                    let provider = local_principal::get_default_provider();
+                    provider.get_current_principal()?.principal_fingerprint
+                }
+            };
 
             let (updated_request, decision) =
                 local_approval::deny_request(&request, admin_fp, reason);
@@ -861,7 +954,14 @@ fn main() -> Result<()> {
                     let decision = tuff_cse_winfs::recovery::recover_store(&store, &volume)?;
                     println!("Recovery Decision: {:?}", decision);
                 }
-                handle_operation(OperationKind::Status, volume, policy, store_root)?;
+                handle_operation(
+                    OperationKind::Status,
+                    volume,
+                    policy,
+                    None,
+                    None,
+                    store_root,
+                )?;
             }
         }
         Commands::Bind {
@@ -875,24 +975,42 @@ fn main() -> Result<()> {
             if plan_only {
                 handle_bind_plan_only(volume, binding_policy, json)?;
             } else {
-                handle_operation(OperationKind::Bind, volume, policy, store_root)?;
+                handle_operation(OperationKind::Bind, volume, policy, None, None, store_root)?;
             }
         }
         Commands::Unlock {
             volume,
             policy,
+            local_policy,
+            approval_id,
             store_root,
-        } => handle_operation(OperationKind::Unlock, volume, policy, store_root)?,
+        } => handle_operation(
+            OperationKind::Unlock,
+            volume,
+            policy,
+            local_policy,
+            approval_id,
+            store_root,
+        )?,
         Commands::Lock {
             volume,
             policy,
             store_root,
-        } => handle_operation(OperationKind::Lock, volume, policy, store_root)?,
+        } => handle_operation(OperationKind::Lock, volume, policy, None, None, store_root)?,
         Commands::Eject {
             volume,
             policy,
+            local_policy,
+            approval_id,
             store_root,
-        } => handle_operation(OperationKind::Eject, volume, policy, store_root)?,
+        } => handle_operation(
+            OperationKind::Eject,
+            volume,
+            policy,
+            local_policy,
+            approval_id,
+            store_root,
+        )?,
         Commands::Audit {
             volume,
             policy,
@@ -905,6 +1023,7 @@ fn main() -> Result<()> {
             recipient_key_fp,
             export_policy,
             local_policy,
+            approval_id,
             manifest_out,
             store_root,
             json,
@@ -919,6 +1038,7 @@ fn main() -> Result<()> {
             recipient_key_fp,
             export_policy,
             local_policy,
+            approval_id,
             manifest_out,
             store_root,
             json,
@@ -935,6 +1055,7 @@ fn main() -> Result<()> {
             reason,
             rebind_policy,
             local_policy,
+            approval_id,
             manifest_out,
             store_root,
             json,
@@ -948,6 +1069,7 @@ fn main() -> Result<()> {
             reason,
             rebind_policy,
             local_policy,
+            approval_id,
             manifest_out,
             store_root,
             json,
@@ -961,6 +1083,7 @@ fn main() -> Result<()> {
             reason,
             recovery_policy,
             local_policy,
+            approval_id,
             plan_out,
             store_root,
             json,
@@ -973,6 +1096,7 @@ fn main() -> Result<()> {
             reason,
             recovery_policy,
             local_policy,
+            approval_id,
             plan_out,
             store_root,
             json,

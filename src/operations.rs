@@ -1,9 +1,11 @@
+use crate::approval_enforcement::{ApprovalEnforcementDecision, ApprovalEnforcer, ApprovalRejectionReason};
 use crate::binding::{self, BindingInputSnapshot};
 use crate::binding_policy;
 use crate::binding_store::BindingStore;
 use crate::export_manifest::{self, ExportRecipient};
 use crate::export_policy;
 use crate::key_material;
+use crate::local_policy::{LocalOperationClass, LocalPolicy};
 use crate::managed_policy::ManagedPolicy;
 use crate::manual_flow::{self, ManualFlowKind};
 use crate::plan_state::PlanLifecycleStatus;
@@ -49,6 +51,7 @@ pub struct OperationRequest {
     pub requested_by: String,
     pub policy_id: String,
     pub timestamp: u64,
+    pub approval_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,6 +64,8 @@ pub struct OperationResult {
     pub next_state: VolumeBindingState,
     pub reason: String,
     pub timestamp: u64,
+    pub approval_enforcement_decision: Option<ApprovalEnforcementDecision>,
+    pub approval_rejection_reason: Option<ApprovalRejectionReason>,
 }
 
 pub fn execute_operation(
@@ -181,6 +186,8 @@ fn build_result(
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs(),
+        approval_enforcement_decision: None,
+        approval_rejection_reason: None,
     }
 }
 
@@ -188,8 +195,31 @@ pub fn execute_managed_operation(
     request: OperationRequest,
     policy: &ManagedPolicy,
     store: &BindingStore,
+    local_policy: Option<&LocalPolicy>,
 ) -> Result<OperationResult> {
     let mut state = store.load_volume_state(&request.volume)?;
+    let dummy_hash = BindingStore::volume_hash(&request.volume);
+
+    // Optional Enforcement for Unlock/Eject if policy provided
+    let mut enf_result = None;
+    if let Some(lp) = local_policy {
+         let op_class = match request.kind {
+             OperationKind::Unlock => Some(LocalOperationClass::Unlock),
+             OperationKind::Eject => Some(LocalOperationClass::Eject),
+             _ => None,
+         };
+         if let Some(oc) = op_class {
+             let enforcer = ApprovalEnforcer::new(store);
+             let res = enforcer.check_required_approval(lp, oc, &dummy_hash, request.approval_id.clone())?;
+             if res.decision == ApprovalEnforcementDecision::Rejected {
+                 let mut op_res = build_result(&request, OperationStatus::Rejected, state.current, state.current, format!("CSE-APPROVAL-REJECTION: {:?}", res.reason.unwrap()));
+                 op_res.approval_enforcement_decision = Some(res.decision);
+                 op_res.approval_rejection_reason = res.reason;
+                 return Ok(op_res);
+             }
+             enf_result = Some(res);
+         }
+    }
 
     // For bind/unlock, we need to ensure binding descriptor exists (except for bind which creates it)
     if request.kind != OperationKind::Bind
@@ -213,8 +243,6 @@ pub fn execute_managed_operation(
         return Ok(result);
     }
 
-    let dummy_hash = BindingStore::volume_hash(&request.volume);
-
     // Prepare journal record
     let record_template = crate::operation_journal::OperationJournalRecord {
         seq: 0,
@@ -230,9 +258,9 @@ pub fn execute_managed_operation(
         plan_id: None,
         session_id: None,
         manual_flow_id: None,
-        approval_id: None,
+        approval_id: enf_result.as_ref().and_then(|r| r.approval_id.clone()),
         decision_id: None,
-        approval_status: None,
+        approval_status: enf_result.as_ref().map(|_| "Approved".to_string()),
         recovery_reason: None,
         reason: result.reason.clone(),
         timestamp: result.timestamp,
@@ -304,6 +332,16 @@ pub fn execute_managed_operation(
         _ => {}
     }
 
+    // Mark approval consumed if required
+    if let (Some(lp), Some(enf)) = (local_policy, enf_result) {
+        if enf.decision == ApprovalEnforcementDecision::Allowed {
+            if let Some(aid) = enf.approval_id {
+                let enforcer = ApprovalEnforcer::new(store);
+                enforcer.consume_approval_if_required(lp, &aid)?;
+            }
+        }
+    }
+
     // Append Commit
     if request.kind != OperationKind::Status && request.kind != OperationKind::Audit {
         let _ = crate::operation_journal::append_commit_record(
@@ -323,9 +361,32 @@ pub fn execute_export_operation(
     store: &BindingStore,
     recipient: ExportRecipient,
     require_manual_confirmation: bool,
+    local_policy: &LocalPolicy,
 ) -> Result<OperationResult> {
     let state = store.load_volume_state(&request.volume)?;
     let dummy_hash = BindingStore::volume_hash(&request.volume);
+
+    // Enforcement Check
+    let enforcer = ApprovalEnforcer::new(store);
+    let enf_result = enforcer.check_required_approval(
+        local_policy,
+        LocalOperationClass::Export,
+        &dummy_hash,
+        request.approval_id.clone(),
+    )?;
+
+    if enf_result.decision == ApprovalEnforcementDecision::Rejected {
+        let mut res = build_result(
+            &request,
+            OperationStatus::Rejected,
+            state.current,
+            state.current,
+            format!("CSE-APPROVAL-REJECTION: {:?}", enf_result.reason.unwrap()),
+        );
+        res.approval_enforcement_decision = Some(enf_result.decision);
+        res.approval_rejection_reason = enf_result.reason;
+        return Ok(res);
+    }
 
     if state.current == VolumeBindingState::Unregistered
         || state.current == VolumeBindingState::RecoveryRequired
@@ -364,9 +425,9 @@ pub fn execute_export_operation(
         plan_id: None,
         session_id: None,
         manual_flow_id: None,
-        approval_id: None,
+        approval_id: enf_result.approval_id.clone(),
         decision_id: None,
-        approval_status: None,
+        approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed { Some("Approved".to_string()) } else { None },
         recovery_reason: None,
         reason: "Exporting manifest".to_string(),
         timestamp: request.timestamp,
@@ -392,19 +453,28 @@ pub fn execute_export_operation(
 
     record_template.plan_id = Some(plan.plan_id.clone());
 
+    // Consume approval if allowed
+    if enf_result.decision == ApprovalEnforcementDecision::Allowed {
+        if let Some(aid) = enf_result.approval_id {
+            enforcer.consume_approval_if_required(local_policy, &aid)?;
+        }
+    }
+
     let _ = crate::operation_journal::append_commit_record(
         store.root_path(),
         &dummy_hash,
         record_template,
     );
 
-    Ok(build_result(
+    let mut final_res = build_result(
         &request,
         OperationStatus::Accepted,
         state.current,
         state.current,
         format!("Export manifest generated: {}", manifest.manifest_id),
-    ))
+    );
+    final_res.approval_enforcement_decision = Some(enf_result.decision);
+    Ok(final_res)
 }
 
 pub fn execute_recover_operation(
@@ -414,9 +484,32 @@ pub fn execute_recover_operation(
     store: &BindingStore,
     recovery_key_fingerprint: String,
     reason_code: String,
+    local_policy: &LocalPolicy,
 ) -> Result<OperationResult> {
     let state = store.load_volume_state(&request.volume)?;
     let dummy_hash = BindingStore::volume_hash(&request.volume);
+
+    // Enforcement Check
+    let enforcer = ApprovalEnforcer::new(store);
+    let enf_result = enforcer.check_required_approval(
+        local_policy,
+        LocalOperationClass::Recover,
+        &dummy_hash,
+        request.approval_id.clone(),
+    )?;
+
+    if enf_result.decision == ApprovalEnforcementDecision::Rejected {
+        let mut res = build_result(
+            &request,
+            OperationStatus::Rejected,
+            state.current,
+            state.current,
+            format!("CSE-APPROVAL-REJECTION: {:?}", enf_result.reason.unwrap()),
+        );
+        res.approval_enforcement_decision = Some(enf_result.decision);
+        res.approval_rejection_reason = enf_result.reason;
+        return Ok(res);
+    }
 
     if state.current == VolumeBindingState::Unregistered {
         return Ok(build_result(
@@ -443,9 +536,9 @@ pub fn execute_recover_operation(
         plan_id: None,
         session_id: None,
         manual_flow_id: None,
-        approval_id: None,
+        approval_id: enf_result.approval_id.clone(),
         decision_id: None,
-        approval_status: None,
+        approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed { Some("Approved".to_string()) } else { None },
         recovery_reason: Some(reason_code.clone()),
         reason: "Generating recovery plan".to_string(),
         timestamp: request.timestamp,
@@ -469,19 +562,25 @@ pub fn execute_recover_operation(
     store.save_recovery_descriptor(&descriptor)?;
     store.save_recovery_plan(&plan)?;
 
+    if let Some(aid) = enf_result.approval_id {
+        enforcer.consume_approval_if_required(local_policy, &aid)?;
+    }
+
     let _ = crate::operation_journal::append_commit_record(
         store.root_path(),
         &dummy_hash,
         record_template,
     );
 
-    Ok(build_result(
+    let mut final_res = build_result(
         &request,
         OperationStatus::Accepted,
         state.current,
         state.current,
         format!("Recovery plan generated: {}", plan.recovery_plan_id),
-    ))
+    );
+    final_res.approval_enforcement_decision = Some(enf_result.decision);
+    Ok(final_res)
 }
 
 pub fn execute_rebind_operation(
@@ -492,9 +591,32 @@ pub fn execute_rebind_operation(
     new_host_fingerprint: String,
     new_host_label: Option<String>,
     reason_code: String,
+    local_policy: &LocalPolicy,
 ) -> Result<OperationResult> {
     let state = store.load_volume_state(&request.volume)?;
     let dummy_hash = BindingStore::volume_hash(&request.volume);
+
+    // Enforcement Check
+    let enforcer = ApprovalEnforcer::new(store);
+    let enf_result = enforcer.check_required_approval(
+        local_policy,
+        LocalOperationClass::Rebind,
+        &dummy_hash,
+        request.approval_id.clone(),
+    )?;
+
+    if enf_result.decision == ApprovalEnforcementDecision::Rejected {
+        let mut res = build_result(
+            &request,
+            OperationStatus::Rejected,
+            state.current,
+            state.current,
+            format!("CSE-APPROVAL-REJECTION: {:?}", enf_result.reason.unwrap()),
+        );
+        res.approval_enforcement_decision = Some(enf_result.decision);
+        res.approval_rejection_reason = enf_result.reason;
+        return Ok(res);
+    }
 
     if state.current == VolumeBindingState::Unregistered
         || state.current == VolumeBindingState::RecoveryRequired
@@ -523,9 +645,9 @@ pub fn execute_rebind_operation(
         plan_id: None,
         session_id: None,
         manual_flow_id: None,
-        approval_id: None,
+        approval_id: enf_result.approval_id.clone(),
         decision_id: None,
-        approval_status: None,
+        approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed { Some("Approved".to_string()) } else { None },
         recovery_reason: Some(reason_code.clone()),
         reason: "Generating rebind plan".to_string(),
         timestamp: request.timestamp,
@@ -551,19 +673,25 @@ pub fn execute_rebind_operation(
     store.save_rebind_plan(&plan)?;
     store.save_rebind_manifest(&manifest)?;
 
+    if let Some(aid) = enf_result.approval_id {
+        enforcer.consume_approval_if_required(local_policy, &aid)?;
+    }
+
     let _ = crate::operation_journal::append_commit_record(
         store.root_path(),
         &dummy_hash,
         record_template,
     );
 
-    Ok(build_result(
+    let mut final_res = build_result(
         &request,
         OperationStatus::Accepted,
         state.current,
         state.current,
         format!("Rebind manifest generated: {}", manifest.rebind_id),
-    ))
+    );
+    final_res.approval_enforcement_decision = Some(enf_result.decision);
+    Ok(final_res)
 }
 
 pub fn execute_manual_flow_operation(
@@ -573,9 +701,37 @@ pub fn execute_manual_flow_operation(
     target_plan_id: String,
     confirmation_token: String,
     reason_code: String,
+    local_policy: &LocalPolicy,
 ) -> Result<OperationResult> {
     let state = store.load_volume_state(&request.volume)?;
     let dummy_hash = BindingStore::volume_hash(&request.volume);
+
+    let op_class = match kind {
+        ManualFlowKind::ExportComplete | ManualFlowKind::RecoverComplete | ManualFlowKind::RebindComplete => LocalOperationClass::ManualComplete,
+        ManualFlowKind::ExportCancel | ManualFlowKind::RecoverCancel | ManualFlowKind::RebindCancel => LocalOperationClass::ManualCancel,
+    };
+
+    // Enforcement Check
+    let enforcer = ApprovalEnforcer::new(store);
+    let enf_result = enforcer.check_required_approval(
+        local_policy,
+        op_class,
+        &dummy_hash,
+        request.approval_id.clone(),
+    )?;
+
+    if enf_result.decision == ApprovalEnforcementDecision::Rejected {
+        let mut res = build_result(
+            &request,
+            OperationStatus::Rejected,
+            state.current,
+            state.current,
+            format!("CSE-APPROVAL-REJECTION: {:?}", enf_result.reason.unwrap()),
+        );
+        res.approval_enforcement_decision = Some(enf_result.decision);
+        res.approval_rejection_reason = enf_result.reason;
+        return Ok(res);
+    }
 
     // Prepare journal record
     let record_template = crate::operation_journal::OperationJournalRecord {
@@ -592,9 +748,9 @@ pub fn execute_manual_flow_operation(
         plan_id: Some(target_plan_id.clone()),
         session_id: None,
         manual_flow_id: None,
-        approval_id: None,
+        approval_id: enf_result.approval_id.clone(),
         decision_id: None,
-        approval_status: None,
+        approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed { Some("Approved".to_string()) } else { None },
         recovery_reason: Some(reason_code.clone()),
         reason: format!("Manual flow: {:?}", kind),
         timestamp: request.timestamp,
@@ -689,17 +845,23 @@ pub fn execute_manual_flow_operation(
 
     store.save_manual_flow_record(&mflow)?;
 
+    if let Some(aid) = enf_result.approval_id {
+        enforcer.consume_approval_if_required(local_policy, &aid)?;
+    }
+
     let _ = crate::operation_journal::append_commit_record(
         store.root_path(),
         &dummy_hash,
         record_template,
     );
 
-    Ok(build_result(
+    let mut final_res = build_result(
         &request,
         OperationStatus::Accepted,
         state.current,
         state.current,
         "Manual flow completed".to_string(),
-    ))
+    );
+    final_res.approval_enforcement_decision = Some(enf_result.decision);
+    Ok(final_res)
 }

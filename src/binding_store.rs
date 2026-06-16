@@ -12,6 +12,7 @@ use crate::volume_state::VolumeRuntimeState;
 use anyhow::Result;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct BindingStore {
     root: PathBuf,
@@ -381,5 +382,17 @@ impl BindingStore {
         let file = File::open(&path)?;
         let decision = serde_json::from_reader(file)?;
         Ok(Some(decision))
+    }
+
+    pub fn mark_approval_consumed(&self, approval_id: &str) -> Result<()> {
+        if let Some(mut decision) = self.load_approval_decision(approval_id)? {
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            decision.consumed_at = Some(now);
+            self.save_approval_decision(&decision)?;
+        }
+        Ok(())
     }
 }

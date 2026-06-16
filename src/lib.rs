@@ -1,3 +1,4 @@
+pub mod approval_enforcement;
 pub mod binding;
 pub mod binding_policy;
 pub mod binding_store;
@@ -10,6 +11,7 @@ pub mod key_material;
 pub mod layout;
 pub mod local_approval;
 pub mod local_policy;
+pub mod local_principal;
 pub mod managed_policy;
 pub mod manual_flow;
 pub mod operation_journal;

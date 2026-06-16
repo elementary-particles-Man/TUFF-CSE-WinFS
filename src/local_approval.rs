@@ -42,6 +42,12 @@ pub struct LocalApprovalDecision {
     pub approved_by_fingerprint: String,
     pub decision_reason: String,
     pub decided_at: u64,
+    // Context binding
+    pub operation_class: LocalOperationClass,
+    pub volume_hash: String,
+    pub policy_id: String,
+    pub expires_at: u64,
+    pub consumed_at: Option<u64>,
 }
 
 pub fn build_approval_request(
@@ -92,6 +98,11 @@ pub fn approve_request(
         approved_by_fingerprint: principal_fingerprint,
         decision_reason: reason,
         decided_at: now,
+        operation_class: request.operation_class,
+        volume_hash: request.target_volume_hash.clone(),
+        policy_id: request.policy_id.clone(),
+        expires_at: request.expires_at,
+        consumed_at: None,
     };
 
     (updated_request, decision)
@@ -117,6 +128,11 @@ pub fn deny_request(
         approved_by_fingerprint: principal_fingerprint,
         decision_reason: reason,
         decided_at: now,
+        operation_class: request.operation_class,
+        volume_hash: request.target_volume_hash.clone(),
+        policy_id: request.policy_id.clone(),
+        expires_at: request.expires_at,
+        consumed_at: None,
     };
 
     (updated_request, decision)

@@ -32,6 +32,9 @@ pub struct LocalPolicy {
     pub require_local_admin_for_recover: bool,
     pub require_local_admin_for_manual_complete: bool,
     pub require_local_admin_for_manual_cancel: bool,
+    pub require_local_admin_for_unlock: bool,
+    pub require_local_admin_for_eject: bool,
+    pub one_time_approval: bool,
     pub approval_ttl_seconds: u64,
     pub allow_self_approval: bool,
     pub persist_raw_admin_identity: bool,
@@ -47,6 +50,9 @@ impl Default for LocalPolicy {
             require_local_admin_for_recover: true,
             require_local_admin_for_manual_complete: true,
             require_local_admin_for_manual_cancel: true,
+            require_local_admin_for_unlock: false,
+            require_local_admin_for_eject: false,
+            one_time_approval: true,
             approval_ttl_seconds: 900,
             allow_self_approval: false,
             persist_raw_admin_identity: false,
@@ -85,6 +91,8 @@ pub fn operation_requires_approval(policy: &LocalPolicy, op_class: LocalOperatio
         LocalOperationClass::Recover => policy.require_local_admin_for_recover,
         LocalOperationClass::ManualComplete => policy.require_local_admin_for_manual_complete,
         LocalOperationClass::ManualCancel => policy.require_local_admin_for_manual_cancel,
+        LocalOperationClass::Unlock => policy.require_local_admin_for_unlock,
+        LocalOperationClass::Eject => policy.require_local_admin_for_eject,
         _ => false,
     }
 }

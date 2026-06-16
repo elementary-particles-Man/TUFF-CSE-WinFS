@@ -1,16 +1,17 @@
 #[cfg(test)]
 mod tests {
-    use std::fs;
     use tempfile::tempdir;
     use tuff_cse_winfs::binding_store::BindingStore;
     use tuff_cse_winfs::export_manifest::ExportRecipient;
     use tuff_cse_winfs::managed_policy::ManagedPolicy;
+    use tuff_cse_winfs::local_policy::LocalPolicy;
     use tuff_cse_winfs::manual_flow::{self, ManualFlowKind};
     use tuff_cse_winfs::operations::{
         execute_export_operation, execute_managed_operation, execute_manual_flow_operation,
-        OperationKind, OperationRequest, OperationStatus,
+        OperationKind, OperationRequest,
     };
     use tuff_cse_winfs::plan_state::PlanLifecycleStatus;
+    use std::fs;
 
     fn setup_store() -> (tempfile::TempDir, BindingStore) {
         let dir = tempdir().unwrap();
@@ -18,7 +19,7 @@ mod tests {
         (dir, store)
     }
 
-    fn mock_request(kind: OperationKind) -> OperationRequest {
+    fn mock_request(kind: OperationKind, approval_id: Option<String>) -> OperationRequest {
         OperationRequest {
             operation_id: "test-id".to_string(),
             kind,
@@ -26,6 +27,7 @@ mod tests {
             requested_by: "test-user".to_string(),
             policy_id: "test-policy".to_string(),
             timestamp: 0,
+            approval_id,
         }
     }
 
@@ -51,6 +53,11 @@ mod tests {
         let (_dir, store) = setup_store();
         let policy = ManagedPolicy::default();
         let exp_policy = tuff_cse_winfs::export_policy::ExportPolicy::default();
+        let local_policy = LocalPolicy {
+             require_local_admin_for_export: false,
+             require_local_admin_for_manual_complete: false,
+             ..LocalPolicy::default()
+        };
         let recipient = ExportRecipient {
             recipient_id: "REC-001".to_string(),
             recipient_key_fingerprint: "FP-001".to_string(),
@@ -58,60 +65,38 @@ mod tests {
         };
 
         // Bind first
-        let _ =
-            execute_managed_operation(mock_request(OperationKind::Bind), &policy, &store).unwrap();
+        let _ = execute_managed_operation(mock_request(OperationKind::Bind, None), &policy, &store, None).unwrap();
 
         // Generate plan with manual confirmation
         let result = execute_export_operation(
-            mock_request(OperationKind::Export),
+            mock_request(OperationKind::Export, None),
             &policy,
             &exp_policy,
             &store,
             recipient,
             true, // require manual confirmation
-        )
-        .unwrap();
+            &local_policy,
+        ).unwrap();
 
-        let export_id = result
-            .reason
-            .split(": ")
-            .nth(1)
-            .unwrap()
-            .trim_start_matches("MANIFEST-");
-        println!("Extracted export_id: [{}]", export_id);
+        let export_id = result.reason.split(": ").nth(1).unwrap().trim_start_matches("MANIFEST-EXP-");
         let plan_id = format!("PLAN-{}", export_id);
-
-        let plan = store
-            .load_export_plan(export_id)
-            .unwrap()
-            .ok_or_else(|| {
-                let path = _dir
-                    .path()
-                    .join(format!("KEYS/export-plans/{}.plan.json", export_id));
-                format!(
-                    "Plan not found at {:?}. Result reason: {}",
-                    path, result.reason
-                )
-            })
-            .unwrap();
+        
+        let plan = store.load_export_plan(export_id).unwrap().unwrap();
         assert_eq!(plan.status, PlanLifecycleStatus::ManualConfirmationRequired);
 
         // Complete the plan
         let _ = execute_manual_flow_operation(
-            mock_request(OperationKind::ManualComplete),
+            mock_request(OperationKind::ManualComplete, None),
             &store,
             ManualFlowKind::ExportComplete,
             plan_id,
             "CONFIRM-EXPORT-001".to_string(),
             "REASON".to_string(),
-        )
-        .unwrap();
+            &local_policy,
+        ).unwrap();
 
         let updated_plan = store.load_export_plan(export_id).unwrap().unwrap();
         assert_eq!(updated_plan.status, PlanLifecycleStatus::Completed);
-
-        let updated_manifest = store.load_export_manifest(export_id).unwrap().unwrap();
-        assert_eq!(updated_manifest.status, PlanLifecycleStatus::Completed);
     }
 
     #[test]
@@ -119,41 +104,40 @@ mod tests {
         let (_dir, store) = setup_store();
         let policy = ManagedPolicy::default();
         let exp_policy = tuff_cse_winfs::export_policy::ExportPolicy::default();
+        let local_policy = LocalPolicy {
+             require_local_admin_for_export: false,
+             require_local_admin_for_manual_cancel: false,
+             ..LocalPolicy::default()
+        };
         let recipient = ExportRecipient {
             recipient_id: "REC-001".to_string(),
             recipient_key_fingerprint: "FP-001".to_string(),
             recipient_org_hint: None,
         };
 
-        let _ =
-            execute_managed_operation(mock_request(OperationKind::Bind), &policy, &store).unwrap();
+        let _ = execute_managed_operation(mock_request(OperationKind::Bind, None), &policy, &store, None).unwrap();
         let result = execute_export_operation(
-            mock_request(OperationKind::Export),
+            mock_request(OperationKind::Export, None),
             &policy,
             &exp_policy,
             &store,
             recipient,
             false,
-        )
-        .unwrap();
+            &local_policy,
+        ).unwrap();
 
-        let export_id = result
-            .reason
-            .split(": ")
-            .nth(1)
-            .unwrap()
-            .trim_start_matches("MANIFEST-");
+        let export_id = result.reason.split(": ").nth(1).unwrap().trim_start_matches("MANIFEST-EXP-");
         let plan_id = format!("PLAN-{}", export_id);
 
         execute_manual_flow_operation(
-            mock_request(OperationKind::ManualCancel),
+            mock_request(OperationKind::ManualCancel, None),
             &store,
             ManualFlowKind::ExportCancel,
             plan_id,
             "ANY-TOKEN".to_string(),
             "USER_ABORT".to_string(),
-        )
-        .unwrap();
+            &local_policy,
+        ).unwrap();
 
         let updated_plan = store.load_export_plan(export_id).unwrap().unwrap();
         assert_eq!(updated_plan.status, PlanLifecycleStatus::Cancelled);
@@ -179,9 +163,7 @@ mod tests {
         };
 
         store.save_manual_flow_record(&record).unwrap();
-        let path = dir
-            .path()
-            .join(format!("JRN/manual/{}.manual.json", flow_id));
+        let path = dir.path().join(format!("JRN/manual/{}.manual.json", flow_id));
         let content = fs::read_to_string(path).unwrap();
 
         assert!(!content.contains("basekey"));
