@@ -1,6 +1,6 @@
-use crate::approval_enforcement::{
-    ApprovalEnforcementDecision, ApprovalEnforcer, ApprovalRejectionReason,
-};
+use crate::approval_enforcement::{ApprovalEnforcementDecision, ApprovalEnforcer, ApprovalRejectionReason};
+use crate::audit_chain::{self, AuditChainState, canonicalize_journal_payload};
+use crate::audit_signing::{self, AuditSigner, DevAuditSigner};
 use crate::binding::{self, BindingInputSnapshot};
 use crate::binding_policy;
 use crate::binding_store::BindingStore;
@@ -205,33 +205,22 @@ pub fn execute_managed_operation(
     // Optional Enforcement for Unlock/Eject if policy provided
     let mut enf_result = None;
     if let Some(lp) = local_policy {
-        let op_class = match request.kind {
-            OperationKind::Unlock => Some(LocalOperationClass::Unlock),
-            OperationKind::Eject => Some(LocalOperationClass::Eject),
-            _ => None,
-        };
-        if let Some(oc) = op_class {
-            let enforcer = ApprovalEnforcer::new(store);
-            let res = enforcer.check_required_approval(
-                lp,
-                oc,
-                &dummy_hash,
-                request.approval_id.clone(),
-            )?;
-            if res.decision == ApprovalEnforcementDecision::Rejected {
-                let mut op_res = build_result(
-                    &request,
-                    OperationStatus::Rejected,
-                    state.current,
-                    state.current,
-                    format!("CSE-APPROVAL-REJECTION: {:?}", res.reason.unwrap()),
-                );
-                op_res.approval_enforcement_decision = Some(res.decision);
-                op_res.approval_rejection_reason = res.reason;
-                return Ok(op_res);
-            }
-            enf_result = Some(res);
-        }
+         let op_class = match request.kind {
+             OperationKind::Unlock => Some(LocalOperationClass::Unlock),
+             OperationKind::Eject => Some(LocalOperationClass::Eject),
+             _ => None,
+         };
+         if let Some(oc) = op_class {
+             let enforcer = ApprovalEnforcer::new(store);
+             let res = enforcer.check_required_approval(lp, oc, &dummy_hash, request.approval_id.clone())?;
+             if res.decision == ApprovalEnforcementDecision::Rejected {
+                 let mut op_res = build_result(&request, OperationStatus::Rejected, state.current, state.current, format!("CSE-APPROVAL-REJECTION: {:?}", res.reason.unwrap()));
+                 op_res.approval_enforcement_decision = Some(res.decision);
+                 op_res.approval_rejection_reason = res.reason;
+                 return Ok(op_res);
+             }
+             enf_result = Some(res);
+         }
     }
 
     // For bind/unlock, we need to ensure binding descriptor exists (except for bind which creates it)
@@ -257,7 +246,7 @@ pub fn execute_managed_operation(
     }
 
     // Prepare journal record
-    let record_template = crate::operation_journal::OperationJournalRecord {
+    let mut record_template = crate::operation_journal::OperationJournalRecord {
         seq: 0,
         phase: crate::operation_journal::OperationJournalPhase::Begin,
         operation_id: result.operation_id.clone(),
@@ -277,7 +266,6 @@ pub fn execute_managed_operation(
         recovery_reason: None,
         reason: result.reason.clone(),
         timestamp: result.timestamp,
-
         record_hash: None,
         previous_record_hash: None,
         chain_hash: None,
@@ -289,6 +277,8 @@ pub fn execute_managed_operation(
 
     // Append Begin
     if request.kind != OperationKind::Status && request.kind != OperationKind::Audit {
+        // P4C: Stub - get signer and chain state, then append_signed_record
+        // For now, continue unsigned for Begin
         let _ = crate::operation_journal::append_begin_record(
             store.root_path(),
             &dummy_hash,
@@ -365,6 +355,7 @@ pub fn execute_managed_operation(
 
     // Append Commit
     if request.kind != OperationKind::Status && request.kind != OperationKind::Audit {
+        record_template.seq = 1; // Simplistic seq
         let _ = crate::operation_journal::append_commit_record(
             store.root_path(),
             &dummy_hash,
