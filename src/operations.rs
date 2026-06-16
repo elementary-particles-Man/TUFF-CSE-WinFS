@@ -277,6 +277,14 @@ pub fn execute_managed_operation(
         recovery_reason: None,
         reason: result.reason.clone(),
         timestamp: result.timestamp,
+
+        record_hash: None,
+        previous_record_hash: None,
+        chain_hash: None,
+        signing_key_id: None,
+        signature_algorithm: None,
+        signature: None,
+        signed_at: None,
     };
 
     // Append Begin
@@ -448,6 +456,13 @@ pub fn execute_export_operation(
         recovery_reason: None,
         reason: "Exporting manifest".to_string(),
         timestamp: request.timestamp,
+        record_hash: None,
+        previous_record_hash: None,
+        chain_hash: None,
+        signing_key_id: None,
+        signature_algorithm: None,
+        signature: None,
+        signed_at: None,
     };
 
     let _ = crate::operation_journal::append_begin_record(
@@ -563,6 +578,13 @@ pub fn execute_recover_operation(
         recovery_reason: Some(reason_code.clone()),
         reason: "Generating recovery plan".to_string(),
         timestamp: request.timestamp,
+        record_hash: None,
+        previous_record_hash: None,
+        chain_hash: None,
+        signing_key_id: None,
+        signature_algorithm: None,
+        signature: None,
+        signed_at: None,
     };
 
     let _ = crate::operation_journal::append_begin_record(
@@ -676,6 +698,13 @@ pub fn execute_rebind_operation(
         recovery_reason: Some(reason_code.clone()),
         reason: "Generating rebind plan".to_string(),
         timestamp: request.timestamp,
+        record_hash: None,
+        previous_record_hash: None,
+        chain_hash: None,
+        signing_key_id: None,
+        signature_algorithm: None,
+        signature: None,
+        signed_at: None,
     };
 
     let _ = crate::operation_journal::append_begin_record(
@@ -787,6 +816,13 @@ pub fn execute_manual_flow_operation(
         recovery_reason: Some(reason_code.clone()),
         reason: format!("Manual flow: {:?}", kind),
         timestamp: request.timestamp,
+        record_hash: None,
+        previous_record_hash: None,
+        chain_hash: None,
+        signing_key_id: None,
+        signature_algorithm: None,
+        signature: None,
+        signed_at: None,
     };
 
     let _ = crate::operation_journal::append_begin_record(

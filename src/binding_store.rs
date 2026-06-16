@@ -1,3 +1,5 @@
+use crate::audit_chain::AuditChainState;
+use crate::audit_signing::AuditPublicKeyRecord;
 use crate::binding::BindingDescriptor;
 use crate::export_manifest::{ExportManifest, ExportPlan};
 use crate::key_material::KeyDerivationPlan;
@@ -10,6 +12,7 @@ use crate::recovery_key::{RecoveryKeyDescriptor, RecoveryPlan};
 use crate::runtime_session::RuntimeSession;
 use crate::volume_state::VolumeRuntimeState;
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -48,9 +51,12 @@ impl BindingStore {
             "KEYS/recovery",
             "KEYS/recovery-plans",
             "KEYS/rebind-plans",
+            "KEYS/audit-signing/public",
+            "KEYS/audit-signing/dev-private",
             "JRN/runtime",
             "JRN/manual",
             "JRN/approvals",
+            "JRN/audit-chain",
             "JRN",
         ];
         for d in dirs {
@@ -394,5 +400,47 @@ impl BindingStore {
             self.save_approval_decision(&decision)?;
         }
         Ok(())
+    }
+
+    pub fn save_audit_public_key(&self, record: &AuditPublicKeyRecord) -> Result<()> {
+        let path = self
+            .root
+            .join(format!("KEYS/audit-signing/public/{}.json", record.key_id));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, record)?;
+        Ok(())
+    }
+
+    pub fn load_audit_public_key(&self, key_id: &str) -> Result<Option<AuditPublicKeyRecord>> {
+        let path = self
+            .root
+            .join(format!("KEYS/audit-signing/public/{}.json", key_id));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let record = serde_json::from_reader(file)?;
+        Ok(Some(record))
+    }
+
+    pub fn save_audit_chain_state(&self, volume_hash: &str, state: &AuditChainState) -> Result<()> {
+        let path = self
+            .root
+            .join(format!("JRN/audit-chain/{}.chain.json", volume_hash));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, state)?;
+        Ok(())
+    }
+
+    pub fn load_audit_chain_state(&self, volume_hash: &str) -> Result<Option<AuditChainState>> {
+        let path = self
+            .root
+            .join(format!("JRN/audit-chain/{}.chain.json", volume_hash));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let state = serde_json::from_reader(file)?;
+        Ok(Some(state))
     }
 }

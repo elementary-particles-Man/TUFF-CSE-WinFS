@@ -1,10 +1,13 @@
+use crate::audit_chain::{canonicalize_journal_payload, compute_chain_hash, compute_record_hash};
+use crate::audit_signing::AuditSigner;
 use crate::operations::{OperationKind, OperationStatus};
 use crate::volume_state::VolumeBindingState;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::fs::OpenOptions;
-use std::io::Write;
+use std::fs::{File, OpenOptions};
+use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum OperationJournalPhase {
@@ -35,6 +38,47 @@ pub struct OperationJournalRecord {
     pub recovery_reason: Option<String>,
     pub reason: String,
     pub timestamp: u64,
+    pub record_hash: Option<Vec<u8>>,
+    pub previous_record_hash: Option<Vec<u8>>,
+    pub chain_hash: Option<Vec<u8>>,
+    pub signing_key_id: Option<String>,
+    pub signature_algorithm: Option<crate::audit_signing::AuditSignatureAlgorithm>,
+    pub signature: Option<Vec<u8>>,
+    pub signed_at: Option<u64>,
+}
+
+pub fn append_signed_record(
+    store_root: &Path,
+    volume_hash: &str,
+    mut record: OperationJournalRecord,
+    prev_hash: &[u8],
+    signer: &dyn AuditSigner,
+) -> Result<()> {
+    let payload = canonicalize_journal_payload(&record);
+    let record_hash = compute_record_hash(&payload);
+    let chain_hash = compute_chain_hash(prev_hash, &record_hash);
+
+    record.record_hash = Some(record_hash);
+    record.previous_record_hash = Some(prev_hash.to_vec());
+    record.chain_hash = Some(chain_hash);
+
+    let sig_record = signer.sign(&canonicalize_journal_payload(&record))?;
+    record.signing_key_id = Some(sig_record.key_id.0);
+    record.signature_algorithm = Some(sig_record.algorithm);
+    record.signature = Some(sig_record.signature);
+    record.signed_at = Some(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs(),
+    );
+
+    let path = store_root.join(format!("JRN/operations-{}.jsonl", volume_hash));
+    let mut file = OpenOptions::new().create(true).append(true).open(path)?;
+
+    let json = serde_json::to_string(&record)?;
+    writeln!(file, "{}", json)?;
+    Ok(())
 }
 
 pub fn append_begin_record(
@@ -43,7 +87,9 @@ pub fn append_begin_record(
     mut record: OperationJournalRecord,
 ) -> Result<()> {
     record.phase = OperationJournalPhase::Begin;
-    append_record(store_root, volume_hash, record)
+    // P4C: Sign Begin (Stub)
+    // append_signed_record(store_root, volume_hash, record, prev_hash, signer)
+    append_record_unsigned(store_root, volume_hash, record)
 }
 
 pub fn append_commit_record(
@@ -52,7 +98,7 @@ pub fn append_commit_record(
     mut record: OperationJournalRecord,
 ) -> Result<()> {
     record.phase = OperationJournalPhase::Commit;
-    append_record(store_root, volume_hash, record)
+    append_record_unsigned(store_root, volume_hash, record)
 }
 
 pub fn append_abort_record(
@@ -61,7 +107,7 @@ pub fn append_abort_record(
     mut record: OperationJournalRecord,
 ) -> Result<()> {
     record.phase = OperationJournalPhase::Abort;
-    append_record(store_root, volume_hash, record)
+    append_record_unsigned(store_root, volume_hash, record)
 }
 
 pub fn append_recovery_record(
@@ -70,10 +116,10 @@ pub fn append_recovery_record(
     mut record: OperationJournalRecord,
 ) -> Result<()> {
     record.phase = OperationJournalPhase::Recovery;
-    append_record(store_root, volume_hash, record)
+    append_record_unsigned(store_root, volume_hash, record)
 }
 
-fn append_record(
+fn append_record_unsigned(
     store_root: &Path,
     volume_hash: &str,
     record: OperationJournalRecord,
@@ -94,13 +140,15 @@ pub fn read_journal_records(
     if !path.exists() {
         return Ok(Vec::new());
     }
-    let content = std::fs::read_to_string(path)?;
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
     let mut records = Vec::new();
-    for line in content.lines() {
+    for line in reader.lines() {
+        let line = line?;
         if line.trim().is_empty() {
             continue;
         }
-        let record: OperationJournalRecord = serde_json::from_str(line)?;
+        let record: OperationJournalRecord = serde_json::from_str(&line)?;
         records.push(record);
     }
     Ok(records)

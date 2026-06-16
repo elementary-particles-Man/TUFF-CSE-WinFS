@@ -56,6 +56,13 @@ pub fn recover_store(store: &BindingStore, volume: &str) -> Result<RecoveryDecis
             recovery_reason: Some(format!("{:?}", RecoveryReason::BeginWithoutCommit)),
             reason: "Interrupted operation detected".to_string(),
             timestamp: 0,
+            record_hash: None,
+            previous_record_hash: None,
+            chain_hash: None,
+            signing_key_id: None,
+            signature_algorithm: None,
+            signature: None,
+            signed_at: None,
         };
         operation_journal::append_recovery_record(store.root_path(), &vol_hash, rec)?;
         return Ok(RecoveryDecision::MarkRecoveryRequired);
@@ -102,6 +109,13 @@ pub fn recover_store(store: &BindingStore, volume: &str) -> Result<RecoveryDecis
                 recovery_reason: Some(format!("{:?}", RecoveryReason::StaleRuntimeSession)),
                 reason: "Stale session detected".to_string(),
                 timestamp: 0,
+                record_hash: None,
+                previous_record_hash: None,
+                chain_hash: None,
+                signing_key_id: None,
+                signature_algorithm: None,
+                signature: None,
+                signed_at: None,
             };
             operation_journal::append_recovery_record(store.root_path(), &vol_hash, rec)?;
 

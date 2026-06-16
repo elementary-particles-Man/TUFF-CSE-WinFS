@@ -6,7 +6,7 @@ mod tests {
     use tuff_cse_winfs::managed_policy::ManagedPolicy;
     use tuff_cse_winfs::operation_journal;
     use tuff_cse_winfs::operations::{execute_managed_operation, OperationKind, OperationRequest};
-    use tuff_cse_winfs::secure_runtime::{SecureRuntimeBuffer, RuntimeSecretKind};
+    use tuff_cse_winfs::secure_runtime::{RuntimeSecretKind, SecureRuntimeBuffer};
     use tuff_cse_winfs::volume_state::VolumeBindingState;
 
     fn mock_request(kind: OperationKind, approval_id: Option<String>) -> OperationRequest {
@@ -23,7 +23,11 @@ mod tests {
 
     #[test]
     fn test_secure_runtime_buffer_zeroizes_on_drop() {
-        let buf = SecureRuntimeBuffer::new_placeholder(RuntimeSecretKind::PlaceholderUnlockMaterial, vec![1, 2, 3, 4]).unwrap();
+        let buf = SecureRuntimeBuffer::new_placeholder(
+            RuntimeSecretKind::PlaceholderUnlockMaterial,
+            vec![1, 2, 3, 4],
+        )
+        .unwrap();
         // Zeroization is handled by ZeroizeOnDrop. We check that it's NOT zeroized initially.
         assert!(!buf.test_only_is_zeroized());
         drop(buf);
@@ -31,7 +35,11 @@ mod tests {
 
     #[test]
     fn test_secure_runtime_buffer_debug_does_not_expose_secrets() {
-        let buf = SecureRuntimeBuffer::new_placeholder(RuntimeSecretKind::PlaceholderUnlockMaterial, vec![1, 2, 3, 4]).unwrap();
+        let buf = SecureRuntimeBuffer::new_placeholder(
+            RuntimeSecretKind::PlaceholderUnlockMaterial,
+            vec![1, 2, 3, 4],
+        )
+        .unwrap();
         let debug = format!("{:?}", buf);
         assert!(debug.contains("REDACTED"));
     }
@@ -42,14 +50,26 @@ mod tests {
         let store = BindingStore::open_at(dir.path()).unwrap();
         let policy = ManagedPolicy::default();
 
-        let _ = execute_managed_operation(mock_request(OperationKind::Bind, None), &policy, &store, None).unwrap();
+        let _ = execute_managed_operation(
+            mock_request(OperationKind::Bind, None),
+            &policy,
+            &store,
+            None,
+        )
+        .unwrap();
 
         let hash = BindingStore::volume_hash("D:");
         let records = operation_journal::read_journal_records(store.root_path(), &hash).unwrap();
 
         assert_eq!(records.len(), 2);
-        assert_eq!(records[0].phase, operation_journal::OperationJournalPhase::Begin);
-        assert_eq!(records[1].phase, operation_journal::OperationJournalPhase::Commit);
+        assert_eq!(
+            records[0].phase,
+            operation_journal::OperationJournalPhase::Begin
+        );
+        assert_eq!(
+            records[1].phase,
+            operation_journal::OperationJournalPhase::Commit
+        );
     }
 
     #[test]
@@ -58,7 +78,13 @@ mod tests {
         let store = BindingStore::open_at(dir.path()).unwrap();
         let policy = ManagedPolicy::default();
 
-        let _ = execute_managed_operation(mock_request(OperationKind::Bind, None), &policy, &store, None).unwrap();
+        let _ = execute_managed_operation(
+            mock_request(OperationKind::Bind, None),
+            &policy,
+            &store,
+            None,
+        )
+        .unwrap();
 
         let hash = BindingStore::volume_hash("D:");
         let path = dir.path().join(format!("JRN/operations-{}.jsonl", hash));
@@ -72,7 +98,11 @@ mod tests {
 
     #[test]
     fn test_reserved_master_key_cannot_be_created_in_p2c() {
-        assert!(SecureRuntimeBuffer::new_placeholder(RuntimeSecretKind::ReservedMasterKey, vec![1, 2, 3, 4]).is_err());
+        assert!(SecureRuntimeBuffer::new_placeholder(
+            RuntimeSecretKind::ReservedMasterKey,
+            vec![1, 2, 3, 4]
+        )
+        .is_err());
     }
 
     #[test]
@@ -82,9 +112,20 @@ mod tests {
         let policy = ManagedPolicy::default();
 
         // 1. Bind and Unlock to create session
-        let _ = execute_managed_operation(mock_request(OperationKind::Bind, None), &policy, &store, None).unwrap();
-        let _ = execute_managed_operation(mock_request(OperationKind::Unlock, None), &policy, &store, None)
-            .unwrap();
+        let _ = execute_managed_operation(
+            mock_request(OperationKind::Bind, None),
+            &policy,
+            &store,
+            None,
+        )
+        .unwrap();
+        let _ = execute_managed_operation(
+            mock_request(OperationKind::Unlock, None),
+            &policy,
+            &store,
+            None,
+        )
+        .unwrap();
 
         // 2. Mock state/session mismatch (Unlocked state but session gone, or vice versa)
         let hash = BindingStore::volume_hash("D:");
@@ -93,6 +134,9 @@ mod tests {
         // 3. Recover
         let decision = tuff_cse_winfs::recovery::recover_store(&store, "D:").unwrap();
         // Currently it should do nothing as we haven't mocked the exact fail condition for the stub.
-        assert_eq!(decision, tuff_cse_winfs::recovery::RecoveryDecision::NoAction);
+        assert_eq!(
+            decision,
+            tuff_cse_winfs::recovery::RecoveryDecision::NoAction
+        );
     }
 }

@@ -24,3 +24,5 @@ rand = "0.8"
 tempfile = "3"
 md5 = "0.8.0"
 zeroize = { version = "1.8.2", features = ["zeroize_derive"] }
+ed25519-dalek = { version = "2.1", features = ["rand_core"] }
+rand_core = "0.6"

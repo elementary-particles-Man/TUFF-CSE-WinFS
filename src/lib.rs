@@ -1,4 +1,6 @@
 pub mod approval_enforcement;
+pub mod audit_chain;
+pub mod audit_signing;
 pub mod binding;
 pub mod binding_policy;
 pub mod binding_store;
