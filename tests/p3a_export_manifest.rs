@@ -1,15 +1,15 @@
 #[cfg(test)]
 mod tests {
+    use std::fs;
     use tempfile::tempdir;
     use tuff_cse_winfs::binding_store::BindingStore;
-    use tuff_cse_winfs::export_manifest::{ExportRecipient};
+    use tuff_cse_winfs::export_manifest::ExportRecipient;
     use tuff_cse_winfs::export_policy::ExportPolicy;
     use tuff_cse_winfs::local_policy::LocalPolicy;
     use tuff_cse_winfs::managed_policy::ManagedPolicy;
     use tuff_cse_winfs::operations::{
         execute_export_operation, execute_managed_operation, OperationKind, OperationRequest,
     };
-    use std::fs;
 
     fn mock_request(kind: OperationKind, approval_id: Option<String>) -> OperationRequest {
         OperationRequest {
@@ -50,8 +50,8 @@ mod tests {
         let policy = ManagedPolicy::default();
         let exp_policy = ExportPolicy::default();
         let local_policy = LocalPolicy {
-             require_local_admin_for_export: false,
-             ..LocalPolicy::default()
+            require_local_admin_for_export: false,
+            ..LocalPolicy::default()
         };
         let recipient = ExportRecipient {
             recipient_id: "REC-001".to_string(),
@@ -83,8 +83,8 @@ mod tests {
         let policy = ManagedPolicy::default();
         let exp_policy = ExportPolicy::default();
         let local_policy = LocalPolicy {
-             require_local_admin_for_export: false,
-             ..LocalPolicy::default()
+            require_local_admin_for_export: false,
+            ..LocalPolicy::default()
         };
         let recipient = ExportRecipient {
             recipient_id: "REC-001".to_string(),
@@ -93,7 +93,13 @@ mod tests {
         };
 
         // Bind first
-        let _ = execute_managed_operation(mock_request(OperationKind::Bind, None), &policy, &store, None).unwrap();
+        let _ = execute_managed_operation(
+            mock_request(OperationKind::Bind, None),
+            &policy,
+            &store,
+            None,
+        )
+        .unwrap();
 
         let result = execute_export_operation(
             mock_request(OperationKind::Export, None),
@@ -121,8 +127,8 @@ mod tests {
         let policy = ManagedPolicy::default();
         let exp_policy = ExportPolicy::default();
         let local_policy = LocalPolicy {
-             require_local_admin_for_export: false,
-             ..LocalPolicy::default()
+            require_local_admin_for_export: false,
+            ..LocalPolicy::default()
         };
         let recipient = ExportRecipient {
             recipient_id: "REC-001".to_string(),
@@ -130,7 +136,13 @@ mod tests {
             recipient_org_hint: None,
         };
 
-        let _ = execute_managed_operation(mock_request(OperationKind::Bind, None), &policy, &store, None).unwrap();
+        let _ = execute_managed_operation(
+            mock_request(OperationKind::Bind, None),
+            &policy,
+            &store,
+            None,
+        )
+        .unwrap();
         let result = execute_export_operation(
             mock_request(OperationKind::Export, None),
             &policy,

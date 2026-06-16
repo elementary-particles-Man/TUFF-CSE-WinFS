@@ -34,9 +34,12 @@ mod tests {
         policy.allow_status = false;
         let mut state = VolumeRuntimeState::new();
 
-        let result =
-            execute_operation(mock_request(OperationKind::Status, None), &policy, &mut state)
-                .unwrap();
+        let result = execute_operation(
+            mock_request(OperationKind::Status, None),
+            &policy,
+            &mut state,
+        )
+        .unwrap();
         assert_eq!(result.status, OperationStatus::Rejected);
     }
 
@@ -46,7 +49,8 @@ mod tests {
         let mut state = VolumeRuntimeState::new();
 
         let result =
-            execute_operation(mock_request(OperationKind::Bind, None), &policy, &mut state).unwrap();
+            execute_operation(mock_request(OperationKind::Bind, None), &policy, &mut state)
+                .unwrap();
         assert_eq!(result.status, OperationStatus::PendingBindingPhase);
         assert_eq!(result.next_state, VolumeBindingState::BoundLocked);
         assert_eq!(state.current, VolumeBindingState::BoundLocked);
@@ -58,9 +62,12 @@ mod tests {
         let mut state = VolumeRuntimeState::new();
         state.current = VolumeBindingState::BoundLocked;
 
-        let result =
-            execute_operation(mock_request(OperationKind::Unlock, None), &policy, &mut state)
-                .unwrap();
+        let result = execute_operation(
+            mock_request(OperationKind::Unlock, None),
+            &policy,
+            &mut state,
+        )
+        .unwrap();
         assert_eq!(result.status, OperationStatus::PendingCryptoPhase);
         assert_eq!(result.next_state, VolumeBindingState::Unlocked);
         assert_eq!(state.current, VolumeBindingState::Unlocked);
@@ -73,7 +80,8 @@ mod tests {
         state.current = VolumeBindingState::Unlocked;
 
         let result =
-            execute_operation(mock_request(OperationKind::Lock, None), &policy, &mut state).unwrap();
+            execute_operation(mock_request(OperationKind::Lock, None), &policy, &mut state)
+                .unwrap();
         assert_eq!(result.status, OperationStatus::PendingDriverPhase);
         assert_eq!(result.next_state, VolumeBindingState::Locked);
         assert_eq!(state.current, VolumeBindingState::Locked);
@@ -85,9 +93,12 @@ mod tests {
         let mut state = VolumeRuntimeState::new();
         state.current = VolumeBindingState::Locked;
 
-        let result =
-            execute_operation(mock_request(OperationKind::Eject, None), &policy, &mut state)
-                .unwrap();
+        let result = execute_operation(
+            mock_request(OperationKind::Eject, None),
+            &policy,
+            &mut state,
+        )
+        .unwrap();
         assert_eq!(result.status, OperationStatus::PendingDriverPhase);
         assert_eq!(result.next_state, VolumeBindingState::CleanRemoved);
         assert_eq!(state.current, VolumeBindingState::CleanRemoved);
@@ -99,9 +110,12 @@ mod tests {
         policy.allow_export = true;
         let mut state = VolumeRuntimeState::new();
 
-        let result =
-            execute_operation(mock_request(OperationKind::Export, None), &policy, &mut state)
-                .unwrap();
+        let result = execute_operation(
+            mock_request(OperationKind::Export, None),
+            &policy,
+            &mut state,
+        )
+        .unwrap();
         assert_eq!(result.status, OperationStatus::Accepted);
     }
 
@@ -111,9 +125,12 @@ mod tests {
         policy.allow_rebind = true;
         let mut state = VolumeRuntimeState::new();
 
-        let result =
-            execute_operation(mock_request(OperationKind::Rebind, None), &policy, &mut state)
-                .unwrap();
+        let result = execute_operation(
+            mock_request(OperationKind::Rebind, None),
+            &policy,
+            &mut state,
+        )
+        .unwrap();
         assert_eq!(result.status, OperationStatus::Accepted);
     }
 
@@ -123,9 +140,12 @@ mod tests {
         policy.allow_recover = true;
         let mut state = VolumeRuntimeState::new();
 
-        let result =
-            execute_operation(mock_request(OperationKind::Recover, None), &policy, &mut state)
-                .unwrap();
+        let result = execute_operation(
+            mock_request(OperationKind::Recover, None),
+            &policy,
+            &mut state,
+        )
+        .unwrap();
         assert_eq!(result.status, OperationStatus::Accepted);
     }
 

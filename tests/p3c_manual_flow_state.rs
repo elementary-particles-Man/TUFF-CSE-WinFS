@@ -1,17 +1,18 @@
 #[cfg(test)]
 mod tests {
+    use std::fs;
     use tempfile::tempdir;
     use tuff_cse_winfs::binding_store::BindingStore;
     use tuff_cse_winfs::export_manifest::ExportRecipient;
+    use tuff_cse_winfs::local_approval::{self, LocalApprovalStatus};
+    use tuff_cse_winfs::local_policy::{self, LocalOperationClass, LocalPolicy};
     use tuff_cse_winfs::managed_policy::ManagedPolicy;
-    use tuff_cse_winfs::local_policy::LocalPolicy;
     use tuff_cse_winfs::manual_flow::{self, ManualFlowKind};
     use tuff_cse_winfs::operations::{
         execute_export_operation, execute_managed_operation, execute_manual_flow_operation,
         OperationKind, OperationRequest,
     };
     use tuff_cse_winfs::plan_state::PlanLifecycleStatus;
-    use std::fs;
 
     fn setup_store() -> (tempfile::TempDir, BindingStore) {
         let dir = tempdir().unwrap();
@@ -29,6 +30,22 @@ mod tests {
             timestamp: 0,
             approval_id,
         }
+    }
+
+    fn create_valid_approval(store: &BindingStore, local_policy: &LocalPolicy, op_class: LocalOperationClass, plan_id: &str, volume_hash: &str) -> String {
+        let request = local_approval::build_approval_request(
+            local_policy,
+            op_class,
+            plan_id.to_string(),
+            volume_hash.to_string(),
+            "USER-FP".to_string(),
+            "REASON".to_string(),
+        );
+        store.save_approval_request(&request).unwrap();
+        let (updated, decision) = local_approval::approve_request(&request, "ADMIN-FP".to_string(), "OK".to_string());
+        store.save_approval_request(&updated).unwrap();
+        store.save_approval_decision(&decision).unwrap();
+        request.approval_id
     }
 
     #[test]
@@ -67,9 +84,12 @@ mod tests {
         // Bind first
         let _ = execute_managed_operation(mock_request(OperationKind::Bind, None), &policy, &store, None).unwrap();
 
-        // Generate plan with manual confirmation
+        // 1. Generate plan with manual confirmation - approval required
+        let vol_hash = BindingStore::volume_hash("D:");
+        let approval_id = create_valid_approval(&store, &local_policy, LocalOperationClass::Export, "TEMP-PLAN-ID", &vol_hash);
+
         let result = execute_export_operation(
-            mock_request(OperationKind::Export, None),
+            mock_request(OperationKind::Export, Some(approval_id)),
             &policy,
             &exp_policy,
             &store,
@@ -78,15 +98,18 @@ mod tests {
             &local_policy,
         ).unwrap();
 
-        let export_id = result.reason.split(": ").nth(1).unwrap().trim_start_matches("MANIFEST-EXP-");
+        let export_id = result.reason.split(": ").nth(1).unwrap().trim_start_matches("MANIFEST-");
         let plan_id = format!("PLAN-{}", export_id);
         
         let plan = store.load_export_plan(export_id).unwrap().unwrap();
         assert_eq!(plan.status, PlanLifecycleStatus::ManualConfirmationRequired);
 
+        // 2. Need approval for complete operation
+        let complete_approval_id = create_valid_approval(&store, &local_policy, LocalOperationClass::ManualComplete, &plan_id, &vol_hash);
+
         // Complete the plan
         let _ = execute_manual_flow_operation(
-            mock_request(OperationKind::ManualComplete, None),
+            mock_request(OperationKind::ManualComplete, Some(complete_approval_id)),
             &store,
             ManualFlowKind::ExportComplete,
             plan_id,
@@ -115,9 +138,12 @@ mod tests {
             recipient_org_hint: None,
         };
 
+        let vol_hash = BindingStore::volume_hash("D:");
         let _ = execute_managed_operation(mock_request(OperationKind::Bind, None), &policy, &store, None).unwrap();
+        
+        let approval_id = create_valid_approval(&store, &local_policy, LocalOperationClass::Export, "TEMP-PLAN-ID", &vol_hash);
         let result = execute_export_operation(
-            mock_request(OperationKind::Export, None),
+            mock_request(OperationKind::Export, Some(approval_id)),
             &policy,
             &exp_policy,
             &store,
@@ -126,11 +152,13 @@ mod tests {
             &local_policy,
         ).unwrap();
 
-        let export_id = result.reason.split(": ").nth(1).unwrap().trim_start_matches("MANIFEST-EXP-");
+        let export_id = result.reason.split(": ").nth(1).unwrap().trim_start_matches("MANIFEST-");
         let plan_id = format!("PLAN-{}", export_id);
+        
+        let cancel_approval_id = create_valid_approval(&store, &local_policy, LocalOperationClass::ManualCancel, &plan_id, &vol_hash);
 
         execute_manual_flow_operation(
-            mock_request(OperationKind::ManualCancel, None),
+            mock_request(OperationKind::ManualCancel, Some(cancel_approval_id)),
             &store,
             ManualFlowKind::ExportCancel,
             plan_id,

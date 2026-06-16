@@ -1,4 +1,6 @@
-use crate::approval_enforcement::{ApprovalEnforcementDecision, ApprovalEnforcer, ApprovalRejectionReason};
+use crate::approval_enforcement::{
+    ApprovalEnforcementDecision, ApprovalEnforcer, ApprovalRejectionReason,
+};
 use crate::binding::{self, BindingInputSnapshot};
 use crate::binding_policy;
 use crate::binding_store::BindingStore;
@@ -203,22 +205,33 @@ pub fn execute_managed_operation(
     // Optional Enforcement for Unlock/Eject if policy provided
     let mut enf_result = None;
     if let Some(lp) = local_policy {
-         let op_class = match request.kind {
-             OperationKind::Unlock => Some(LocalOperationClass::Unlock),
-             OperationKind::Eject => Some(LocalOperationClass::Eject),
-             _ => None,
-         };
-         if let Some(oc) = op_class {
-             let enforcer = ApprovalEnforcer::new(store);
-             let res = enforcer.check_required_approval(lp, oc, &dummy_hash, request.approval_id.clone())?;
-             if res.decision == ApprovalEnforcementDecision::Rejected {
-                 let mut op_res = build_result(&request, OperationStatus::Rejected, state.current, state.current, format!("CSE-APPROVAL-REJECTION: {:?}", res.reason.unwrap()));
-                 op_res.approval_enforcement_decision = Some(res.decision);
-                 op_res.approval_rejection_reason = res.reason;
-                 return Ok(op_res);
-             }
-             enf_result = Some(res);
-         }
+        let op_class = match request.kind {
+            OperationKind::Unlock => Some(LocalOperationClass::Unlock),
+            OperationKind::Eject => Some(LocalOperationClass::Eject),
+            _ => None,
+        };
+        if let Some(oc) = op_class {
+            let enforcer = ApprovalEnforcer::new(store);
+            let res = enforcer.check_required_approval(
+                lp,
+                oc,
+                &dummy_hash,
+                request.approval_id.clone(),
+            )?;
+            if res.decision == ApprovalEnforcementDecision::Rejected {
+                let mut op_res = build_result(
+                    &request,
+                    OperationStatus::Rejected,
+                    state.current,
+                    state.current,
+                    format!("CSE-APPROVAL-REJECTION: {:?}", res.reason.unwrap()),
+                );
+                op_res.approval_enforcement_decision = Some(res.decision);
+                op_res.approval_rejection_reason = res.reason;
+                return Ok(op_res);
+            }
+            enf_result = Some(res);
+        }
     }
 
     // For bind/unlock, we need to ensure binding descriptor exists (except for bind which creates it)
@@ -427,7 +440,11 @@ pub fn execute_export_operation(
         manual_flow_id: None,
         approval_id: enf_result.approval_id.clone(),
         decision_id: None,
-        approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed { Some("Approved".to_string()) } else { None },
+        approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed {
+            Some("Approved".to_string())
+        } else {
+            None
+        },
         recovery_reason: None,
         reason: "Exporting manifest".to_string(),
         timestamp: request.timestamp,
@@ -538,7 +555,11 @@ pub fn execute_recover_operation(
         manual_flow_id: None,
         approval_id: enf_result.approval_id.clone(),
         decision_id: None,
-        approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed { Some("Approved".to_string()) } else { None },
+        approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed {
+            Some("Approved".to_string())
+        } else {
+            None
+        },
         recovery_reason: Some(reason_code.clone()),
         reason: "Generating recovery plan".to_string(),
         timestamp: request.timestamp,
@@ -647,7 +668,11 @@ pub fn execute_rebind_operation(
         manual_flow_id: None,
         approval_id: enf_result.approval_id.clone(),
         decision_id: None,
-        approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed { Some("Approved".to_string()) } else { None },
+        approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed {
+            Some("Approved".to_string())
+        } else {
+            None
+        },
         recovery_reason: Some(reason_code.clone()),
         reason: "Generating rebind plan".to_string(),
         timestamp: request.timestamp,
@@ -707,8 +732,12 @@ pub fn execute_manual_flow_operation(
     let dummy_hash = BindingStore::volume_hash(&request.volume);
 
     let op_class = match kind {
-        ManualFlowKind::ExportComplete | ManualFlowKind::RecoverComplete | ManualFlowKind::RebindComplete => LocalOperationClass::ManualComplete,
-        ManualFlowKind::ExportCancel | ManualFlowKind::RecoverCancel | ManualFlowKind::RebindCancel => LocalOperationClass::ManualCancel,
+        ManualFlowKind::ExportComplete
+        | ManualFlowKind::RecoverComplete
+        | ManualFlowKind::RebindComplete => LocalOperationClass::ManualComplete,
+        ManualFlowKind::ExportCancel
+        | ManualFlowKind::RecoverCancel
+        | ManualFlowKind::RebindCancel => LocalOperationClass::ManualCancel,
     };
 
     // Enforcement Check
@@ -750,7 +779,11 @@ pub fn execute_manual_flow_operation(
         manual_flow_id: None,
         approval_id: enf_result.approval_id.clone(),
         decision_id: None,
-        approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed { Some("Approved".to_string()) } else { None },
+        approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed {
+            Some("Approved".to_string())
+        } else {
+            None
+        },
         recovery_reason: Some(reason_code.clone()),
         reason: format!("Manual flow: {:?}", kind),
         timestamp: request.timestamp,

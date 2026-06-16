@@ -4,7 +4,7 @@ mod tests {
     use tuff_cse_winfs::binding_store::BindingStore;
     use tuff_cse_winfs::managed_policy::ManagedPolicy;
     use tuff_cse_winfs::operations::{execute_managed_operation, OperationKind, OperationRequest};
-    use tuff_cse_winfs::volume_state::{VolumeBindingState};
+    use tuff_cse_winfs::volume_state::VolumeBindingState;
 
     fn mock_request(kind: OperationKind, approval_id: Option<String>) -> OperationRequest {
         OperationRequest {
@@ -34,9 +34,13 @@ mod tests {
         let store = BindingStore::open_at(dir.path()).unwrap();
         let policy = ManagedPolicy::default();
 
-        let result =
-            execute_managed_operation(mock_request(OperationKind::Status, None), &policy, &store, None)
-                .unwrap();
+        let result = execute_managed_operation(
+            mock_request(OperationKind::Status, None),
+            &policy,
+            &store,
+            None,
+        )
+        .unwrap();
         assert_eq!(result.next_state, VolumeBindingState::Unregistered);
     }
 
@@ -46,9 +50,13 @@ mod tests {
         let store = BindingStore::open_at(dir.path()).unwrap();
         let policy = ManagedPolicy::default();
 
-        let _ =
-            execute_managed_operation(mock_request(OperationKind::Bind, None), &policy, &store, None)
-                .unwrap();
+        let _ = execute_managed_operation(
+            mock_request(OperationKind::Bind, None),
+            &policy,
+            &store,
+            None,
+        )
+        .unwrap();
 
         let state = store.load_volume_state("D:").unwrap();
         assert_eq!(state.current, VolumeBindingState::BoundLocked);
@@ -61,12 +69,18 @@ mod tests {
         let store = BindingStore::open_at(dir.path()).unwrap();
         let policy = ManagedPolicy::default();
 
-        let _ =
-            execute_managed_operation(mock_request(OperationKind::Bind, None), &policy, &store, None)
-                .unwrap();
+        let _ = execute_managed_operation(
+            mock_request(OperationKind::Bind, None),
+            &policy,
+            &store,
+            None,
+        )
+        .unwrap();
 
         let hash = BindingStore::volume_hash("D:");
-        let desc_path = dir.path().join(format!("META/bindings/{}.binding.json", hash));
+        let desc_path = dir
+            .path()
+            .join(format!("META/bindings/{}.binding.json", hash));
         let plan_path = dir.path().join(format!("KEYS/plans/{}.plan.json", hash));
 
         let desc_content = fs::read_to_string(desc_path).unwrap();
@@ -89,9 +103,13 @@ mod tests {
         let store = BindingStore::open_at(dir.path()).unwrap();
         let policy = ManagedPolicy::default();
 
-        let result =
-            execute_managed_operation(mock_request(OperationKind::Unlock, None), &policy, &store, None)
-                .unwrap();
+        let result = execute_managed_operation(
+            mock_request(OperationKind::Unlock, None),
+            &policy,
+            &store,
+            None,
+        )
+        .unwrap();
         assert_eq!(
             result.status,
             tuff_cse_winfs::operations::OperationStatus::Rejected
@@ -105,9 +123,13 @@ mod tests {
         let policy = ManagedPolicy::default();
 
         // 1. Bind
-        let _ =
-            execute_managed_operation(mock_request(OperationKind::Bind, None), &policy, &store, None)
-                .unwrap();
+        let _ = execute_managed_operation(
+            mock_request(OperationKind::Bind, None),
+            &policy,
+            &store,
+            None,
+        )
+        .unwrap();
 
         // 2. Unlock
         let result = execute_managed_operation(
@@ -125,9 +147,13 @@ mod tests {
         assert!(session.is_some());
 
         // 3. Lock
-        let result =
-            execute_managed_operation(mock_request(OperationKind::Lock, None), &policy, &store, None)
-                .unwrap();
+        let result = execute_managed_operation(
+            mock_request(OperationKind::Lock, None),
+            &policy,
+            &store,
+            None,
+        )
+        .unwrap();
         assert_eq!(result.next_state, VolumeBindingState::Locked);
 
         let session = store
@@ -137,9 +163,13 @@ mod tests {
         assert!(session.zeroize_required);
 
         // 4. Eject
-        let result =
-            execute_managed_operation(mock_request(OperationKind::Eject, None), &policy, &store, None)
-                .unwrap();
+        let result = execute_managed_operation(
+            mock_request(OperationKind::Eject, None),
+            &policy,
+            &store,
+            None,
+        )
+        .unwrap();
         assert_eq!(result.next_state, VolumeBindingState::CleanRemoved);
 
         let session = store

@@ -1,7 +1,7 @@
 use crate::binding_store::BindingStore;
-use crate::local_approval::{LocalApprovalStatus};
-use crate::local_policy::{LocalOperationClass, LocalPolicy, operation_requires_approval};
-use anyhow::{Result};
+use crate::local_approval::LocalApprovalStatus;
+use crate::local_policy::{operation_requires_approval, LocalOperationClass, LocalPolicy};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -112,7 +112,7 @@ impl<'a> ApprovalEnforcer<'a> {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        
+
         if decision.expires_at < now {
             return Ok(ApprovalEnforcementResult {
                 decision: ApprovalEnforcementDecision::Rejected,
