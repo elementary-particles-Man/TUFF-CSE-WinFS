@@ -7,7 +7,7 @@ use tuff_cse_winfs::audit_signing::{self, AuditSigner, DevAuditSigner};
 use tuff_cse_winfs::binding::{self, BindingInputSnapshot};
 use tuff_cse_winfs::binding_policy;
 use tuff_cse_winfs::binding_store::BindingStore;
-use tuff_cse_winfs::export_manifest::{ExportRecipient};
+use tuff_cse_winfs::export_manifest::ExportRecipient;
 use tuff_cse_winfs::export_policy;
 use tuff_cse_winfs::key_material;
 use tuff_cse_winfs::local_approval;
@@ -319,17 +319,24 @@ fn handle_operation(
         operation_id: format!(
             "OP-{}-{}",
             kind as u32,
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
         ),
         kind,
         volume: volume.clone(),
         requested_by: "Admin".to_string(), // Mock
         policy_id: policy.policy_id.clone(),
-        timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+        timestamp: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs(),
         approval_id,
     };
 
-    let result = operations::execute_managed_operation(request, &policy, &store, local_policy.as_ref())?;
+    let result =
+        operations::execute_managed_operation(request, &policy, &store, local_policy.as_ref())?;
 
     println!("Operation: {:?}", kind);
     println!("Status: {:?}", result.status);
@@ -416,13 +423,19 @@ fn handle_export(
         let request = OperationRequest {
             operation_id: format!(
                 "OP-MCOMPLETE-{}",
-                SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
             ),
             kind: OperationKind::ManualComplete,
             volume,
             requested_by: "Admin".to_string(),
             policy_id: "MANUAL-FLOW".to_string(),
-            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
             approval_id,
         };
         let result = operations::execute_manual_flow_operation(
@@ -443,13 +456,19 @@ fn handle_export(
         let request = OperationRequest {
             operation_id: format!(
                 "OP-MCANCEL-{}",
-                SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
             ),
             kind: OperationKind::ManualCancel,
             volume,
             requested_by: "Admin".to_string(),
             policy_id: "MANUAL-FLOW".to_string(),
-            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
             approval_id,
         };
         let result = operations::execute_manual_flow_operation(
@@ -483,13 +502,19 @@ fn handle_export(
     let request = OperationRequest {
         operation_id: format!(
             "OP-EXPORT-{}",
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
         ),
         kind: OperationKind::Export,
         volume: volume.clone(),
         requested_by: "Admin".to_string(),
         policy_id: export_policy.policy_id.clone(),
-        timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+        timestamp: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs(),
         approval_id,
     };
 
@@ -550,13 +575,19 @@ fn handle_recover(
         let request = OperationRequest {
             operation_id: format!(
                 "OP-RECOVER-COMPLETE-{}",
-                SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
             ),
             kind: OperationKind::ManualComplete,
             volume,
             requested_by: "Admin".to_string(),
             policy_id: "MANUAL-FLOW".to_string(),
-            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
             approval_id,
         };
         let result = operations::execute_manual_flow_operation(
@@ -584,13 +615,19 @@ fn handle_recover(
     let request = OperationRequest {
         operation_id: format!(
             "OP-RECOVER-{}",
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
         ),
         kind: OperationKind::Recover,
         volume: volume.clone(),
         requested_by: "Admin".to_string(),
         policy_id: recovery_policy.policy_id.clone(),
-        timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+        timestamp: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs(),
         approval_id,
     };
 
@@ -650,13 +687,19 @@ fn handle_rebind(
         let request = OperationRequest {
             operation_id: format!(
                 "OP-REBIND-COMPLETE-{}",
-                SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
             ),
             kind: OperationKind::ManualComplete,
             volume,
             requested_by: "Admin".to_string(),
             policy_id: "MANUAL-FLOW".to_string(),
-            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
             approval_id,
         };
         let result = operations::execute_manual_flow_operation(
@@ -684,13 +727,19 @@ fn handle_rebind(
     let request = OperationRequest {
         operation_id: format!(
             "OP-REBIND-{}",
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
         ),
         kind: OperationKind::Rebind,
         volume: volume.clone(),
         requested_by: "Admin".to_string(),
         policy_id: rebind_policy.policy_id.clone(),
-        timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+        timestamp: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs(),
         approval_id,
     };
 
@@ -725,7 +774,11 @@ fn handle_rebind(
     Ok(())
 }
 
-fn handle_audit_signing(sub: &AuditSigningCommands, volume: String, store_root: Option<PathBuf>) -> Result<()> {
+fn handle_audit_signing(
+    sub: &AuditSigningCommands,
+    volume: String,
+    store_root: Option<PathBuf>,
+) -> Result<()> {
     let store = open_store(store_root)?;
     match sub {
         AuditSigningCommands::Init { .. } => {
@@ -738,7 +791,10 @@ fn handle_audit_signing(sub: &AuditSigningCommands, volume: String, store_root: 
             println!("Status check not fully implemented in skeleton");
         }
         AuditSigningCommands::Verify { volume, .. } => {
-            let records = operation_journal::read_journal_records(store.root_path(), &BindingStore::volume_hash(volume))?;
+            let records = operation_journal::read_journal_records(
+                store.root_path(),
+                &BindingStore::volume_hash(volume),
+            )?;
             // ... verification logic ...
             println!("Verification check not fully implemented in skeleton");
         }
@@ -800,43 +856,188 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Status { volume, policy, json, recover_stale, store_root } => {
-             // ...
-             handle_operation(OperationKind::Status, volume, policy, None, None, store_root)?;
+        Commands::Status {
+            volume,
+            policy,
+            json,
+            recover_stale,
+            store_root,
+        } => {
+            // ...
+            handle_operation(
+                OperationKind::Status,
+                volume,
+                policy,
+                None,
+                None,
+                store_root,
+            )?;
         }
-        Commands::Bind { volume, policy, binding_policy, plan_only, json, store_root } => {
+        Commands::Bind {
+            volume,
+            policy,
+            binding_policy,
+            plan_only,
+            json,
+            store_root,
+        } => {
             if plan_only {
                 handle_bind_plan_only(volume, binding_policy, json)?;
             } else {
                 handle_operation(OperationKind::Bind, volume, policy, None, None, store_root)?;
             }
         }
-        Commands::Unlock { volume, policy, local_policy, approval_id, store_root } => {
-            handle_operation(OperationKind::Unlock, volume, policy, local_policy, approval_id, store_root)?;
+        Commands::Unlock {
+            volume,
+            policy,
+            local_policy,
+            approval_id,
+            store_root,
+        } => {
+            handle_operation(
+                OperationKind::Unlock,
+                volume,
+                policy,
+                local_policy,
+                approval_id,
+                store_root,
+            )?;
         }
-        Commands::Lock { volume, policy, store_root } => {
+        Commands::Lock {
+            volume,
+            policy,
+            store_root,
+        } => {
             handle_operation(OperationKind::Lock, volume, policy, None, None, store_root)?;
         }
-        Commands::Eject { volume, policy, local_policy, approval_id, store_root } => {
-            handle_operation(OperationKind::Eject, volume, policy, local_policy, approval_id, store_root)?;
+        Commands::Eject {
+            volume,
+            policy,
+            local_policy,
+            approval_id,
+            store_root,
+        } => {
+            handle_operation(
+                OperationKind::Eject,
+                volume,
+                policy,
+                local_policy,
+                approval_id,
+                store_root,
+            )?;
         }
-        Commands::Audit { volume, policy, json, store_root } => {
+        Commands::Audit {
+            volume,
+            policy,
+            json,
+            store_root,
+        } => {
             handle_audit(volume, policy, json, store_root)?;
         }
-        Commands::Export { volume, recipient, recipient_key_fp, export_policy, local_policy, approval_id, manifest_out, store_root, json, require_manual_confirmation, complete_plan, cancel_plan, confirm, reason } => {
-            handle_export(volume, recipient, recipient_key_fp, export_policy, local_policy, approval_id, manifest_out, store_root, json, require_manual_confirmation, complete_plan, cancel_plan, confirm, reason)?;
+        Commands::Export {
+            volume,
+            recipient,
+            recipient_key_fp,
+            export_policy,
+            local_policy,
+            approval_id,
+            manifest_out,
+            store_root,
+            json,
+            require_manual_confirmation,
+            complete_plan,
+            cancel_plan,
+            confirm,
+            reason,
+        } => {
+            handle_export(
+                volume,
+                recipient,
+                recipient_key_fp,
+                export_policy,
+                local_policy,
+                approval_id,
+                manifest_out,
+                store_root,
+                json,
+                require_manual_confirmation,
+                complete_plan,
+                cancel_plan,
+                confirm,
+                reason,
+            )?;
         }
-        Commands::Rebind { volume, new_host_fp, new_host_label, reason, rebind_policy, local_policy, approval_id, manifest_out, store_root, json, complete_plan, cancel_plan, confirm } => {
-            handle_rebind(volume, new_host_fp, new_host_label, reason, rebind_policy, local_policy, approval_id, manifest_out, store_root, json, complete_plan, cancel_plan, confirm)?;
+        Commands::Rebind {
+            volume,
+            new_host_fp,
+            new_host_label,
+            reason,
+            rebind_policy,
+            local_policy,
+            approval_id,
+            manifest_out,
+            store_root,
+            json,
+            complete_plan,
+            cancel_plan,
+            confirm,
+        } => {
+            handle_rebind(
+                volume,
+                new_host_fp,
+                new_host_label,
+                reason,
+                rebind_policy,
+                local_policy,
+                approval_id,
+                manifest_out,
+                store_root,
+                json,
+                complete_plan,
+                cancel_plan,
+                confirm,
+            )?;
         }
-        Commands::Recover { volume, recovery_key_fp, reason, recovery_policy, local_policy, approval_id, plan_out, store_root, json, complete_plan, cancel_plan, confirm } => {
-            handle_recover(volume, recovery_key_fp, reason, recovery_policy, local_policy, approval_id, plan_out, store_root, json, complete_plan, cancel_plan, confirm)?;
+        Commands::Recover {
+            volume,
+            recovery_key_fp,
+            reason,
+            recovery_policy,
+            local_policy,
+            approval_id,
+            plan_out,
+            store_root,
+            json,
+            complete_plan,
+            cancel_plan,
+            confirm,
+        } => {
+            handle_recover(
+                volume,
+                recovery_key_fp,
+                reason,
+                recovery_policy,
+                local_policy,
+                approval_id,
+                plan_out,
+                store_root,
+                json,
+                complete_plan,
+                cancel_plan,
+                confirm,
+            )?;
         }
         Commands::Approval { sub } => handle_approval(sub)?,
         Commands::AuditSigning { sub } => match &sub {
-            AuditSigningCommands::Init { volume, store_root } => handle_audit_signing(&sub, volume.clone(), store_root.clone()),
-            AuditSigningCommands::Status { volume, store_root } => handle_audit_signing(&sub, volume.clone(), store_root.clone()),
-            AuditSigningCommands::Verify { volume, store_root } => handle_audit_signing(&sub, volume.clone(), store_root.clone()),
+            AuditSigningCommands::Init { volume, store_root } => {
+                handle_audit_signing(&sub, volume.clone(), store_root.clone())
+            }
+            AuditSigningCommands::Status { volume, store_root } => {
+                handle_audit_signing(&sub, volume.clone(), store_root.clone())
+            }
+            AuditSigningCommands::Verify { volume, store_root } => {
+                handle_audit_signing(&sub, volume.clone(), store_root.clone())
+            }
         }?,
     }
 
