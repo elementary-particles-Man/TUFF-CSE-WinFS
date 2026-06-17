@@ -1,18 +1,20 @@
 use crate::audit_chain::AuditChainState;
 use crate::audit_signing::AuditPublicKeyRecord;
 use crate::binding::BindingDescriptor;
+use crate::domain_policy::DomainPolicy;
 use crate::export_manifest::{ExportManifest, ExportPlan};
+use crate::group_policy_mapping::GroupPolicyMapping;
 use crate::key_material::KeyDerivationPlan;
 use crate::layout;
 use crate::local_approval::{LocalApprovalDecision, LocalApprovalRequest};
 use crate::local_policy::LocalPolicy;
 use crate::manual_flow::ManualFlowRecord;
+use crate::offline_policy_snapshot::OfflinePolicySnapshot;
 use crate::rebind_model::{RebindManifest, RebindPlan};
 use crate::recovery_key::{RecoveryKeyDescriptor, RecoveryPlan};
 use crate::runtime_session::RuntimeSession;
 use crate::volume_state::VolumeRuntimeState;
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -46,6 +48,9 @@ impl BindingStore {
             "META/exports",
             "META/rebind",
             "META/local-policy",
+            "META/domain-policy",
+            "META/group-policy",
+            "META/offline-policy",
             "KEYS/plans",
             "KEYS/export-plans",
             "KEYS/recovery",
@@ -57,6 +62,7 @@ impl BindingStore {
             "JRN/manual",
             "JRN/approvals",
             "JRN/audit-chain",
+            "JRN/domain-policy",
             "JRN",
         ];
         for d in dirs {
@@ -207,10 +213,9 @@ impl BindingStore {
     }
 
     pub fn save_recovery_descriptor(&self, descriptor: &RecoveryKeyDescriptor) -> Result<()> {
-        let path = self.root.join(format!(
-            "KEYS/recovery/{}.recovery.json",
-            descriptor.recovery_id
-        ));
+        let path = self
+            .root
+            .join(format!("KEYS/recovery/{}.recovery.json", descriptor.recovery_id));
         let file = File::create(&path)?;
         serde_json::to_writer_pretty(file, descriptor)?;
         Ok(())
@@ -232,20 +237,18 @@ impl BindingStore {
     }
 
     pub fn save_recovery_plan(&self, plan: &RecoveryPlan) -> Result<()> {
-        let path = self.root.join(format!(
-            "KEYS/recovery-plans/{}.plan.json",
-            plan.recovery_plan_id
-        ));
+        let path = self
+            .root
+            .join(format!("KEYS/recovery-plans/{}.plan.json", plan.recovery_plan_id));
         let file = File::create(&path)?;
         serde_json::to_writer_pretty(file, plan)?;
         Ok(())
     }
 
     pub fn load_recovery_plan(&self, recovery_plan_id: &str) -> Result<Option<RecoveryPlan>> {
-        let path = self.root.join(format!(
-            "KEYS/recovery-plans/{}.plan.json",
-            recovery_plan_id
-        ));
+        let path = self
+            .root
+            .join(format!("KEYS/recovery-plans/{}.plan.json", recovery_plan_id));
         if !path.exists() {
             return Ok(None);
         }
@@ -255,10 +258,9 @@ impl BindingStore {
     }
 
     pub fn save_rebind_plan(&self, plan: &RebindPlan) -> Result<()> {
-        let path = self.root.join(format!(
-            "KEYS/rebind-plans/{}.plan.json",
-            plan.rebind_plan_id
-        ));
+        let path = self
+            .root
+            .join(format!("KEYS/rebind-plans/{}.plan.json", plan.rebind_plan_id));
         let file = File::create(&path)?;
         serde_json::to_writer_pretty(file, plan)?;
         Ok(())
@@ -442,5 +444,68 @@ impl BindingStore {
         let file = File::open(&path)?;
         let state = serde_json::from_reader(file)?;
         Ok(Some(state))
+    }
+    
+    pub fn save_domain_policy(&self, policy: &DomainPolicy) -> Result<()> {
+        let path = self
+            .root
+            .join(format!("META/domain-policy/{}.json", policy.domain_policy_id));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, policy)?;
+        Ok(())
+    }
+
+    pub fn load_domain_policy(&self, policy_id: &str) -> Result<Option<DomainPolicy>> {
+        let path = self
+            .root
+            .join(format!("META/domain-policy/{}.json", policy_id));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let policy = serde_json::from_reader(file)?;
+        Ok(Some(policy))
+    }
+
+    pub fn save_group_policy_mapping(&self, mapping: &GroupPolicyMapping) -> Result<()> {
+        let path = self
+            .root
+            .join(format!("META/group-policy/{}.json", mapping.mapping_id));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, mapping)?;
+        Ok(())
+    }
+
+    pub fn load_group_policy_mapping(&self, mapping_id: &str) -> Result<Option<GroupPolicyMapping>> {
+        let path = self
+            .root
+            .join(format!("META/group-policy/{}.json", mapping_id));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let mapping = serde_json::from_reader(file)?;
+        Ok(Some(mapping))
+    }
+
+    pub fn save_offline_policy_snapshot(&self, snapshot: &OfflinePolicySnapshot) -> Result<()> {
+        let path = self
+            .root
+            .join(format!("META/offline-policy/{}.json", snapshot.snapshot_id));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, snapshot)?;
+        Ok(())
+    }
+
+    pub fn load_offline_policy_snapshot(&self, snapshot_id: &str) -> Result<Option<OfflinePolicySnapshot>> {
+        let path = self
+            .root
+            .join(format!("META/offline-policy/{}.json", snapshot_id));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let snapshot = serde_json::from_reader(file)?;
+        Ok(Some(snapshot))
     }
 }
