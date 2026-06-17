@@ -5,6 +5,8 @@ pub mod binding;
 pub mod binding_policy;
 pub mod binding_store;
 pub mod completion;
+pub mod domain_approval;
+pub mod domain_approval_enforcement;
 pub mod domain_policy;
 pub mod domain_principal;
 pub mod driver;

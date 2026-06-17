@@ -72,6 +72,13 @@ pub struct OperationResult {
     pub approval_rejection_reason: Option<ApprovalRejectionReason>,
 }
 
+pub fn get_now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
 pub fn execute_operation(
     request: OperationRequest,
     policy: &ManagedPolicy,
