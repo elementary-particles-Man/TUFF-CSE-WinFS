@@ -3,6 +3,7 @@ use crate::audit_signing::AuditPublicKeyRecord;
 use crate::binding::BindingDescriptor;
 use crate::domain_approval::{DomainApprovalDecision, DomainApprovalRequest};
 use crate::domain_policy::DomainPolicy;
+use crate::domain_recovery::{DomainRecoveryDecision, DomainRecoveryPackage, DomainRecoveryRequest};
 use crate::export_manifest::{ExportManifest, ExportPlan};
 use crate::group_policy_mapping::GroupPolicyMapping;
 use crate::key_material::KeyDerivationPlan;
@@ -66,6 +67,9 @@ impl BindingStore {
             "JRN/domain-policy",
             "JRN/domain-approvals/requests",
             "JRN/domain-approvals/decisions",
+            "JRN/domain-recovery/requests",
+            "JRN/domain-recovery/packages",
+            "JRN/domain-recovery/decisions",
             "JRN",
         ];
         for d in dirs {
@@ -216,9 +220,10 @@ impl BindingStore {
     }
 
     pub fn save_recovery_descriptor(&self, descriptor: &RecoveryKeyDescriptor) -> Result<()> {
-        let path = self
-            .root
-            .join(format!("KEYS/recovery/{}.recovery.json", descriptor.recovery_id));
+        let path = self.root.join(format!(
+            "KEYS/recovery/{}.recovery.json",
+            descriptor.recovery_id
+        ));
         let file = File::create(&path)?;
         serde_json::to_writer_pretty(file, descriptor)?;
         Ok(())
@@ -240,18 +245,20 @@ impl BindingStore {
     }
 
     pub fn save_recovery_plan(&self, plan: &RecoveryPlan) -> Result<()> {
-        let path = self
-            .root
-            .join(format!("KEYS/recovery-plans/{}.plan.json", plan.recovery_plan_id));
+        let path = self.root.join(format!(
+            "KEYS/recovery-plans/{}.plan.json",
+            plan.recovery_plan_id
+        ));
         let file = File::create(&path)?;
         serde_json::to_writer_pretty(file, plan)?;
         Ok(())
     }
 
     pub fn load_recovery_plan(&self, recovery_plan_id: &str) -> Result<Option<RecoveryPlan>> {
-        let path = self
-            .root
-            .join(format!("KEYS/recovery-plans/{}.plan.json", recovery_plan_id));
+        let path = self.root.join(format!(
+            "KEYS/recovery-plans/{}.plan.json",
+            recovery_plan_id
+        ));
         if !path.exists() {
             return Ok(None);
         }
@@ -261,9 +268,10 @@ impl BindingStore {
     }
 
     pub fn save_rebind_plan(&self, plan: &RebindPlan) -> Result<()> {
-        let path = self
-            .root
-            .join(format!("KEYS/rebind-plans/{}.plan.json", plan.rebind_plan_id));
+        let path = self.root.join(format!(
+            "KEYS/rebind-plans/{}.plan.json",
+            plan.rebind_plan_id
+        ));
         let file = File::create(&path)?;
         serde_json::to_writer_pretty(file, plan)?;
         Ok(())
@@ -450,9 +458,10 @@ impl BindingStore {
     }
     
     pub fn save_domain_policy(&self, policy: &DomainPolicy) -> Result<()> {
-        let path = self
-            .root
-            .join(format!("META/domain-policy/{}.json", policy.domain_policy_id));
+        let path = self.root.join(format!(
+            "META/domain-policy/{}.json",
+            policy.domain_policy_id
+        ));
         let file = File::create(&path)?;
         serde_json::to_writer_pretty(file, policy)?;
         Ok(())
@@ -471,9 +480,10 @@ impl BindingStore {
     }
 
     pub fn save_group_policy_mapping(&self, mapping: &GroupPolicyMapping) -> Result<()> {
-        let path = self
-            .root
-            .join(format!("META/group-policy/{}.json", mapping.mapping_id));
+        let path = self.root.join(format!(
+            "META/group-policy/{}.json",
+            mapping.mapping_id
+        ));
         let file = File::create(&path)?;
         serde_json::to_writer_pretty(file, mapping)?;
         Ok(())
@@ -492,9 +502,10 @@ impl BindingStore {
     }
 
     pub fn save_offline_policy_snapshot(&self, snapshot: &OfflinePolicySnapshot) -> Result<()> {
-        let path = self
-            .root
-            .join(format!("META/offline-policy/{}.json", snapshot.snapshot_id));
+        let path = self.root.join(format!(
+            "META/offline-policy/{}.json",
+            snapshot.snapshot_id
+        ));
         let file = File::create(&path)?;
         serde_json::to_writer_pretty(file, snapshot)?;
         Ok(())
@@ -513,9 +524,10 @@ impl BindingStore {
     }
     
     pub fn save_domain_approval_request(&self, request: &DomainApprovalRequest) -> Result<()> {
-        let path = self
-            .root
-            .join(format!("JRN/domain-approvals/requests/{}.json", request.request_id));
+        let path = self.root.join(format!(
+            "JRN/domain-approvals/requests/{}.json",
+            request.request_id
+        ));
         let file = File::create(&path)?;
         serde_json::to_writer_pretty(file, request)?;
         Ok(())
@@ -534,9 +546,10 @@ impl BindingStore {
     }
 
     pub fn save_domain_approval_decision(&self, decision: &DomainApprovalDecision) -> Result<()> {
-        let path = self
-            .root
-            .join(format!("JRN/domain-approvals/decisions/{}.json", decision.decision_id));
+        let path = self.root.join(format!(
+            "JRN/domain-approvals/decisions/{}.json",
+            decision.decision_id
+        ));
         let file = File::create(&path)?;
         serde_json::to_writer_pretty(file, decision)?;
         Ok(())
@@ -562,6 +575,84 @@ impl BindingStore {
                 .as_secs();
             decision.consumed_at = Some(now);
             self.save_domain_approval_decision(&decision)?;
+        }
+        Ok(())
+    }
+    
+    pub fn save_domain_recovery_request(&self, request: &DomainRecoveryRequest) -> Result<()> {
+        let path = self.root.join(format!(
+            "JRN/domain-recovery/requests/{}.json",
+            request.request_id
+        ));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, request)?;
+        Ok(())
+    }
+
+    pub fn load_domain_recovery_request(&self, request_id: &str) -> Result<Option<DomainRecoveryRequest>> {
+        let path = self
+            .root
+            .join(format!("JRN/domain-recovery/requests/{}.json", request_id));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let request = serde_json::from_reader(file)?;
+        Ok(Some(request))
+    }
+
+    pub fn save_domain_recovery_package(&self, package: &DomainRecoveryPackage) -> Result<()> {
+        let path = self.root.join(format!(
+            "JRN/domain-recovery/packages/{}.json",
+            package.package_id
+        ));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, package)?;
+        Ok(())
+    }
+
+    pub fn load_domain_recovery_package(&self, package_id: &str) -> Result<Option<DomainRecoveryPackage>> {
+        let path = self
+            .root
+            .join(format!("JRN/domain-recovery/packages/{}.json", package_id));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let package = serde_json::from_reader(file)?;
+        Ok(Some(package))
+    }
+
+    pub fn save_domain_recovery_decision(&self, decision: &DomainRecoveryDecision) -> Result<()> {
+        let path = self.root.join(format!(
+            "JRN/domain-recovery/decisions/{}.json",
+            decision.decision_id
+        ));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, decision)?;
+        Ok(())
+    }
+
+    pub fn load_domain_recovery_decision(&self, decision_id: &str) -> Result<Option<DomainRecoveryDecision>> {
+        let path = self
+            .root
+            .join(format!("JRN/domain-recovery/decisions/{}.json", decision_id));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let decision = serde_json::from_reader(file)?;
+        Ok(Some(decision))
+    }
+    
+    pub fn mark_domain_recovery_consumed(&self, decision_id: &str) -> Result<()> {
+        if let Some(mut decision) = self.load_domain_recovery_decision(decision_id)? {
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            decision.consumed_at = Some(now);
+            self.save_domain_recovery_decision(&decision)?;
         }
         Ok(())
     }

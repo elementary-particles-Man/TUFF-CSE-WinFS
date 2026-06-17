@@ -52,13 +52,16 @@ impl<'a> DomainApprovalEnforcer<'a> {
         // 1. Check if domain approval is actually required by policy (Reserved for P5B)
         // 2. If required, verify decision
         if let Some(d) = decision {
-             if d.operation_kind != operation || d.volume_hash != volume_hash || d.domain_policy_id != domain_policy.domain_policy_id {
-                 return Ok(DomainApprovalEnforcementDecision::Rejected);
-             }
-             if d.is_expired(crate::operations::get_now()) || d.is_consumed() {
-                 return Ok(DomainApprovalEnforcementDecision::Rejected);
-             }
-             return Ok(DomainApprovalEnforcementDecision::Allowed);
+            if d.operation_kind != operation
+                || d.volume_hash != volume_hash
+                || d.domain_policy_id != domain_policy.domain_policy_id
+            {
+                return Ok(DomainApprovalEnforcementDecision::Rejected);
+            }
+            if d.is_expired(crate::operations::get_now()) || d.is_consumed() {
+                return Ok(DomainApprovalEnforcementDecision::Rejected);
+            }
+            return Ok(DomainApprovalEnforcementDecision::Allowed);
         }
         Ok(DomainApprovalEnforcementDecision::Rejected)
     }

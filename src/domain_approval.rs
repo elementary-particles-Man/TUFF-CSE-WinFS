@@ -1,6 +1,8 @@
-use serde::{Deserialize, Serialize};
-use crate::domain_principal::{DomainAuthorityFingerprint, DomainPrincipalFingerprint, DomainGroupFingerprint};
+use crate::domain_principal::{
+    DomainAuthorityFingerprint, DomainGroupFingerprint, DomainPrincipalFingerprint,
+};
 use crate::operations::OperationKind;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DomainApprovalStatus {

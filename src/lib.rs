@@ -9,6 +9,8 @@ pub mod domain_approval;
 pub mod domain_approval_enforcement;
 pub mod domain_policy;
 pub mod domain_principal;
+pub mod domain_recovery;
+pub mod domain_recovery_enforcement;
 pub mod driver;
 pub mod export_manifest;
 pub mod export_policy;

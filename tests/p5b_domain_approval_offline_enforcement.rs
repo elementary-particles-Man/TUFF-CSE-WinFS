@@ -1,10 +1,18 @@
-use tuff_cse_winfs::domain_approval::{DomainApprovalRequest, DomainApprovalStatus, DomainApprovalSourceKind, DomainApprovalDecision};
-use tuff_cse_winfs::domain_principal::{DomainAuthorityFingerprint, DomainPrincipalFingerprint, DomainGroupFingerprint};
-use tuff_cse_winfs::operations::OperationKind;
-use tuff_cse_winfs::domain_policy::{DomainPolicy, DomainPolicySourceKind, DomainPolicyEffect, DomainOperationPolicy};
-use tuff_cse_winfs::domain_approval_enforcement::{DomainApprovalEnforcer, DomainApprovalEnforcementDecision};
-use tuff_cse_winfs::binding_store::BindingStore;
 use tempfile::tempdir;
+use tuff_cse_winfs::binding_store::BindingStore;
+use tuff_cse_winfs::domain_approval::{
+    DomainApprovalDecision, DomainApprovalRequest, DomainApprovalSourceKind, DomainApprovalStatus,
+};
+use tuff_cse_winfs::domain_approval_enforcement::{
+    DomainApprovalEnforcementDecision, DomainApprovalEnforcer,
+};
+use tuff_cse_winfs::domain_policy::{
+    DomainOperationPolicy, DomainPolicy, DomainPolicyEffect, DomainPolicySourceKind,
+};
+use tuff_cse_winfs::domain_principal::{
+    DomainAuthorityFingerprint, DomainGroupFingerprint, DomainPrincipalFingerprint,
+};
+use tuff_cse_winfs::operations::OperationKind;
 
 #[test]
 fn test_domain_approval_request_persists_only_fingerprints() {
@@ -57,13 +65,15 @@ fn test_domain_approval_enforcer_accepts_valid_decision() {
         created_at: 0,
     };
 
-    let result = enforcer.check_required_domain_approval(
-        Some(&decision),
-        OperationKind::Export,
-        "vol-hash",
-        &policy,
-        None,
-    ).unwrap();
+    let result = enforcer
+        .check_required_domain_approval(
+            Some(&decision),
+            OperationKind::Export,
+            "vol-hash",
+            &policy,
+            None,
+        )
+        .unwrap();
 
     assert_eq!(result, DomainApprovalEnforcementDecision::Allowed);
 }
