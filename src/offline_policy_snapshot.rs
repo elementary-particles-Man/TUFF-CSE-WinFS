@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::domain_principal::DomainAuthorityFingerprint;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OfflinePolicySnapshot {

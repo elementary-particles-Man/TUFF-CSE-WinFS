@@ -213,9 +213,10 @@ impl BindingStore {
     }
 
     pub fn save_recovery_descriptor(&self, descriptor: &RecoveryKeyDescriptor) -> Result<()> {
-        let path = self
-            .root
-            .join(format!("KEYS/recovery/{}.recovery.json", descriptor.recovery_id));
+        let path = self.root.join(format!(
+            "KEYS/recovery/{}.recovery.json",
+            descriptor.recovery_id
+        ));
         let file = File::create(&path)?;
         serde_json::to_writer_pretty(file, descriptor)?;
         Ok(())
@@ -237,18 +238,20 @@ impl BindingStore {
     }
 
     pub fn save_recovery_plan(&self, plan: &RecoveryPlan) -> Result<()> {
-        let path = self
-            .root
-            .join(format!("KEYS/recovery-plans/{}.plan.json", plan.recovery_plan_id));
+        let path = self.root.join(format!(
+            "KEYS/recovery-plans/{}.plan.json",
+            plan.recovery_plan_id
+        ));
         let file = File::create(&path)?;
         serde_json::to_writer_pretty(file, plan)?;
         Ok(())
     }
 
     pub fn load_recovery_plan(&self, recovery_plan_id: &str) -> Result<Option<RecoveryPlan>> {
-        let path = self
-            .root
-            .join(format!("KEYS/recovery-plans/{}.plan.json", recovery_plan_id));
+        let path = self.root.join(format!(
+            "KEYS/recovery-plans/{}.plan.json",
+            recovery_plan_id
+        ));
         if !path.exists() {
             return Ok(None);
         }
@@ -258,9 +261,10 @@ impl BindingStore {
     }
 
     pub fn save_rebind_plan(&self, plan: &RebindPlan) -> Result<()> {
-        let path = self
-            .root
-            .join(format!("KEYS/rebind-plans/{}.plan.json", plan.rebind_plan_id));
+        let path = self.root.join(format!(
+            "KEYS/rebind-plans/{}.plan.json",
+            plan.rebind_plan_id
+        ));
         let file = File::create(&path)?;
         serde_json::to_writer_pretty(file, plan)?;
         Ok(())
@@ -445,11 +449,12 @@ impl BindingStore {
         let state = serde_json::from_reader(file)?;
         Ok(Some(state))
     }
-    
+
     pub fn save_domain_policy(&self, policy: &DomainPolicy) -> Result<()> {
-        let path = self
-            .root
-            .join(format!("META/domain-policy/{}.json", policy.domain_policy_id));
+        let path = self.root.join(format!(
+            "META/domain-policy/{}.json",
+            policy.domain_policy_id
+        ));
         let file = File::create(&path)?;
         serde_json::to_writer_pretty(file, policy)?;
         Ok(())
@@ -476,7 +481,10 @@ impl BindingStore {
         Ok(())
     }
 
-    pub fn load_group_policy_mapping(&self, mapping_id: &str) -> Result<Option<GroupPolicyMapping>> {
+    pub fn load_group_policy_mapping(
+        &self,
+        mapping_id: &str,
+    ) -> Result<Option<GroupPolicyMapping>> {
         let path = self
             .root
             .join(format!("META/group-policy/{}.json", mapping_id));
@@ -497,7 +505,10 @@ impl BindingStore {
         Ok(())
     }
 
-    pub fn load_offline_policy_snapshot(&self, snapshot_id: &str) -> Result<Option<OfflinePolicySnapshot>> {
+    pub fn load_offline_policy_snapshot(
+        &self,
+        snapshot_id: &str,
+    ) -> Result<Option<OfflinePolicySnapshot>> {
         let path = self
             .root
             .join(format!("META/offline-policy/{}.json", snapshot_id));
