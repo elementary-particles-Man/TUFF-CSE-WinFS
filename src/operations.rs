@@ -6,6 +6,15 @@ use crate::audit_signing::{self, AuditSigner, DevAuditSigner};
 use crate::binding::{self, BindingInputSnapshot};
 use crate::binding_policy;
 use crate::binding_store::BindingStore;
+use crate::enterprise_authority;
+use crate::enterprise_quorum;
+use crate::enterprise_recovery;
+use crate::enterprise_recovery::{
+    EnterpriseRecoveryDecision, EnterpriseRecoveryRequest, EnterpriseRecoverySourceKind,
+};
+use crate::enterprise_recovery_enforcement::{
+    EnterpriseRecoveryEnforcementDecision, EnterpriseRecoveryEnforcer,
+};
 use crate::export_manifest::{self, ExportRecipient};
 use crate::export_policy;
 use crate::key_material;
@@ -56,6 +65,9 @@ pub struct OperationRequest {
     pub policy_id: String,
     pub timestamp: u64,
     pub approval_id: Option<String>,
+    pub enterprise_authority_policy_id: Option<String>,
+    pub enterprise_quorum_policy_id: Option<String>,
+    pub enterprise_recovery_decision_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -282,6 +294,13 @@ pub fn execute_managed_operation(
         manual_flow_id: None,
         approval_id: enf_result.as_ref().and_then(|r| r.approval_id.clone()),
         decision_id: None,
+        enterprise_authority_policy_id: None,
+        enterprise_quorum_policy_id: None,
+        enterprise_recovery_request_id: None,
+        enterprise_recovery_decision_id: None,
+        enterprise_recovery_status: None,
+        enterprise_recovery_enforcement_status: None,
+        enterprise_recovery_rejection_reason: None,
         approval_status: enf_result.as_ref().map(|_| "Approved".to_string()),
         recovery_reason: None,
         reason: result.reason.clone(),
@@ -459,6 +478,13 @@ pub fn execute_export_operation(
         manual_flow_id: None,
         approval_id: enf_result.approval_id.clone(),
         decision_id: None,
+        enterprise_authority_policy_id: None,
+        enterprise_quorum_policy_id: None,
+        enterprise_recovery_request_id: None,
+        enterprise_recovery_decision_id: None,
+        enterprise_recovery_status: None,
+        enterprise_recovery_enforcement_status: None,
+        enterprise_recovery_rejection_reason: None,
         approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed {
             Some("Approved".to_string())
         } else {
@@ -532,6 +558,80 @@ pub fn execute_recover_operation(
     let state = store.load_volume_state(&request.volume)?;
     let dummy_hash = BindingStore::volume_hash(&request.volume);
 
+    if state.current == VolumeBindingState::Unregistered {
+        return Ok(build_result(
+            &request,
+            OperationStatus::Rejected,
+            state.current,
+            state.current,
+            "Invalid source state for recover".to_string(),
+        ));
+    }
+
+    let enterprise_request = if let Some(enterprise_decision_id) =
+        request.enterprise_recovery_decision_id.as_ref()
+    {
+        let enterprise_decision = store
+            .load_enterprise_recovery_decision(enterprise_decision_id)?
+            .ok_or_else(|| anyhow::anyhow!("enterprise recovery decision not found"))?;
+        let enterprise_request = EnterpriseRecoveryRequest {
+            request_id: enterprise_recovery::EnterpriseRecoveryRequestId(format!(
+                "ERQ-{}",
+                request.operation_id
+            )),
+            operation_kind: request.kind,
+            volume_hash: dummy_hash.clone(),
+            domain_recovery_request_id: enterprise_decision.domain_recovery_request_id.clone(),
+            domain_recovery_package_id: enterprise_decision.domain_recovery_package_id.clone(),
+            domain_recovery_decision_id: enterprise_decision.domain_recovery_decision_id.clone(),
+            enterprise_authority_policy_id: enterprise_decision
+                .enterprise_authority_policy_id
+                .clone(),
+            enterprise_quorum_policy_id: enterprise_decision.enterprise_quorum_policy_id.clone(),
+            source_kind: enterprise_decision.source_kind,
+            created_at: request.timestamp,
+        };
+
+        let authority_policy = store
+            .load_enterprise_authority_policy(&enterprise_request.enterprise_authority_policy_id.0)?
+            .ok_or_else(|| anyhow::anyhow!("enterprise authority policy not found"))?;
+        let quorum_policy = store
+            .load_enterprise_quorum_policy(&enterprise_request.enterprise_quorum_policy_id.0)?
+            .ok_or_else(|| anyhow::anyhow!("enterprise quorum policy not found"))?;
+        let enforcer = EnterpriseRecoveryEnforcer::new(store);
+        match enforcer.check_enterprise_recovery(
+            &enterprise_request,
+            Some(&enterprise_decision),
+            Some(&authority_policy),
+            Some(&quorum_policy),
+        )? {
+            EnterpriseRecoveryEnforcementDecision::Allowed => {
+                Some((enterprise_request, enterprise_decision))
+            }
+            EnterpriseRecoveryEnforcementDecision::Rejected => {
+                return Ok(build_result(
+                    &request,
+                    OperationStatus::Rejected,
+                    state.current,
+                    state.current,
+                    "Enterprise recovery gate rejected".to_string(),
+                ));
+            }
+            EnterpriseRecoveryEnforcementDecision::ReservedProviderExecution => {
+                return Ok(build_result(
+                    &request,
+                    OperationStatus::Reserved,
+                    state.current,
+                    state.current,
+                    "Enterprise recovery reserved provider execution".to_string(),
+                ));
+            }
+            EnterpriseRecoveryEnforcementDecision::NotRequired => None,
+        }
+    } else {
+        None
+    };
+
     // Enforcement Check
     let enforcer = ApprovalEnforcer::new(store);
     let enf_result = enforcer.check_required_approval(
@@ -554,16 +654,6 @@ pub fn execute_recover_operation(
         return Ok(res);
     }
 
-    if state.current == VolumeBindingState::Unregistered {
-        return Ok(build_result(
-            &request,
-            OperationStatus::Rejected,
-            state.current,
-            state.current,
-            "Invalid source state for recover".to_string(),
-        ));
-    }
-
     // Prepare journal record
     let record_template = crate::operation_journal::OperationJournalRecord {
         seq: 0,
@@ -581,6 +671,23 @@ pub fn execute_recover_operation(
         manual_flow_id: None,
         approval_id: enf_result.approval_id.clone(),
         decision_id: None,
+        enterprise_authority_policy_id: enterprise_request
+            .as_ref()
+            .map(|(request, _)| request.enterprise_authority_policy_id.0.clone()),
+        enterprise_quorum_policy_id: enterprise_request
+            .as_ref()
+            .map(|(request, _)| request.enterprise_quorum_policy_id.0.clone()),
+        enterprise_recovery_request_id: enterprise_request
+            .as_ref()
+            .map(|(request, _)| request.request_id.0.clone()),
+        enterprise_recovery_decision_id: request.enterprise_recovery_decision_id.clone(),
+        enterprise_recovery_status: enterprise_request
+            .as_ref()
+            .map(|(_, decision)| decision.status),
+        enterprise_recovery_enforcement_status: enterprise_request
+            .as_ref()
+            .map(|_| EnterpriseRecoveryEnforcementDecision::Allowed),
+        enterprise_recovery_rejection_reason: None,
         approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed {
             Some("Approved".to_string())
         } else {
@@ -618,6 +725,11 @@ pub fn execute_recover_operation(
 
     if let Some(aid) = enf_result.approval_id {
         enforcer.consume_approval_if_required(local_policy, &aid)?;
+    }
+
+    if let Some((_, decision)) = enterprise_request {
+        EnterpriseRecoveryEnforcer::new(store)
+            .consume_enterprise_recovery_decision_if_required(&decision.decision_id.0)?;
     }
 
     let _ = crate::operation_journal::append_commit_record(
@@ -701,6 +813,13 @@ pub fn execute_rebind_operation(
         manual_flow_id: None,
         approval_id: enf_result.approval_id.clone(),
         decision_id: None,
+        enterprise_authority_policy_id: None,
+        enterprise_quorum_policy_id: None,
+        enterprise_recovery_request_id: None,
+        enterprise_recovery_decision_id: None,
+        enterprise_recovery_status: None,
+        enterprise_recovery_enforcement_status: None,
+        enterprise_recovery_rejection_reason: None,
         approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed {
             Some("Approved".to_string())
         } else {
@@ -819,6 +938,13 @@ pub fn execute_manual_flow_operation(
         manual_flow_id: None,
         approval_id: enf_result.approval_id.clone(),
         decision_id: None,
+        enterprise_authority_policy_id: None,
+        enterprise_quorum_policy_id: None,
+        enterprise_recovery_request_id: None,
+        enterprise_recovery_decision_id: None,
+        enterprise_recovery_status: None,
+        enterprise_recovery_enforcement_status: None,
+        enterprise_recovery_rejection_reason: None,
         approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed {
             Some("Approved".to_string())
         } else {

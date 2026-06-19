@@ -15,6 +15,9 @@ mod tests {
             policy_id: "test-policy".to_string(),
             timestamp: 0,
             approval_id,
+            enterprise_authority_policy_id: None,
+            enterprise_quorum_policy_id: None,
+            enterprise_recovery_decision_id: None,
         }
     }
 
@@ -187,5 +190,103 @@ mod tests {
         let json = "\"Bind\"";
         let deserialized: OperationKind = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized, OperationKind::Bind);
+    }
+
+    #[test]
+    fn test_enterprise_authority_policy_serializes() {
+        use tuff_cse_winfs::enterprise_authority::{
+            EnterpriseAuthorityFingerprint, EnterpriseAuthorityPolicy,
+            EnterpriseAuthorityPolicyHash, EnterpriseAuthorityPolicyId,
+            EnterpriseAuthorityProviderKind,
+        };
+
+        let policy = EnterpriseAuthorityPolicy {
+            policy_id: EnterpriseAuthorityPolicyId("EA-001".to_string()),
+            authority_fingerprint: EnterpriseAuthorityFingerprint("AUTH-FP".to_string()),
+            provider_kind: EnterpriseAuthorityProviderKind::ImportedOfflineAuthority,
+            policy_hash: Some(EnterpriseAuthorityPolicyHash("hash".to_string())),
+            created_at: 1,
+        };
+        let json = serde_json::to_string(&policy).unwrap();
+        let decoded: EnterpriseAuthorityPolicy = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.policy_id.0, "EA-001");
+    }
+
+    #[test]
+    fn test_enterprise_quorum_policy_serializes() {
+        use tuff_cse_winfs::enterprise_authority::EnterpriseAuthorityPolicyId;
+        use tuff_cse_winfs::enterprise_quorum::{
+            EnterpriseQuorumMemberFingerprint, EnterpriseQuorumPolicy, EnterpriseQuorumPolicyHash,
+            EnterpriseQuorumPolicyId, EnterpriseQuorumThreshold, QuorumRule,
+        };
+
+        let policy = EnterpriseQuorumPolicy {
+            policy_id: EnterpriseQuorumPolicyId("EQ-001".to_string()),
+            enterprise_authority_policy_id: EnterpriseAuthorityPolicyId("EA-001".to_string()),
+            rule: QuorumRule::Threshold,
+            threshold: EnterpriseQuorumThreshold(1),
+            members: vec![EnterpriseQuorumMemberFingerprint("FP-1".to_string())],
+            policy_hash: Some(EnterpriseQuorumPolicyHash("hash".to_string())),
+            created_at: 1,
+        };
+        let json = serde_json::to_string(&policy).unwrap();
+        let decoded: EnterpriseQuorumPolicy = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.policy_id.0, "EQ-001");
+    }
+
+    #[test]
+    fn test_enterprise_recovery_request_and_decision_serializes() {
+        use tuff_cse_winfs::enterprise_authority::EnterpriseAuthorityPolicyId;
+        use tuff_cse_winfs::enterprise_quorum::{
+            EnterpriseQuorumMemberFingerprint, EnterpriseQuorumPolicyId,
+        };
+        use tuff_cse_winfs::enterprise_recovery::{
+            build_enterprise_recovery_decision, EnterpriseRecoveryDecisionId,
+            EnterpriseRecoveryRequest, EnterpriseRecoveryRequestId, EnterpriseRecoverySourceKind,
+            EnterpriseRecoveryStatus,
+        };
+
+        let request = EnterpriseRecoveryRequest {
+            request_id: EnterpriseRecoveryRequestId("ERQ-1".to_string()),
+            operation_kind: OperationKind::Recover,
+            volume_hash: "vol".to_string(),
+            domain_recovery_request_id: "drq".to_string(),
+            domain_recovery_package_id: "dpk".to_string(),
+            domain_recovery_decision_id: "ddc".to_string(),
+            enterprise_authority_policy_id: EnterpriseAuthorityPolicyId("EA-1".to_string()),
+            enterprise_quorum_policy_id: EnterpriseQuorumPolicyId("EQ-1".to_string()),
+            source_kind: EnterpriseRecoverySourceKind::ImportedOfflineDecision,
+            created_at: 1,
+        };
+        let json = serde_json::to_string(&request).unwrap();
+        let decoded: EnterpriseRecoveryRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.request_id.0, "ERQ-1");
+
+        let decision = build_enterprise_recovery_decision(
+            EnterpriseRecoveryDecisionId("ERD-1".to_string()),
+            OperationKind::Recover,
+            "vol".to_string(),
+            "drq".to_string(),
+            "dpk".to_string(),
+            "ddc".to_string(),
+            EnterpriseAuthorityPolicyId("EA-1".to_string()),
+            EnterpriseQuorumPolicyId("EQ-1".to_string()),
+            vec![EnterpriseQuorumMemberFingerprint("FP-1".to_string())],
+            1,
+            2,
+            EnterpriseRecoveryStatus::Approved,
+            EnterpriseRecoverySourceKind::DevGeneratedDecision,
+        );
+        let json = serde_json::to_string(&decision).unwrap();
+        let decoded: tuff_cse_winfs::enterprise_recovery::EnterpriseRecoveryDecision =
+            serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.decision_id.0, "ERD-1");
+    }
+
+    #[test]
+    fn test_enterprise_recovery_status_serializes() {
+        use tuff_cse_winfs::enterprise_recovery::EnterpriseRecoveryStatus;
+        let json = serde_json::to_string(&EnterpriseRecoveryStatus::Approved).unwrap();
+        assert_eq!(json, "\"Approved\"");
     }
 }

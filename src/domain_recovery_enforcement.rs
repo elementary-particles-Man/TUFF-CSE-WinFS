@@ -1,5 +1,7 @@
 use crate::binding_store::BindingStore;
-use crate::domain_recovery::{DomainRecoveryDecision, DomainRecoveryRequest, DomainRecoveryWorkflowState};
+use crate::domain_recovery::{
+    DomainRecoveryDecision, DomainRecoveryRequest, DomainRecoveryWorkflowState,
+};
 use anyhow::{anyhow, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,7 +48,9 @@ impl<'a> DomainRecoveryEnforcer<'a> {
     ) -> Result<DomainRecoveryEnforcementDecision> {
         // P5C Logic - Placeholder for actual workflow validation
         if let Some(d) = decision {
-            if d.request_id != request.request_id || d.status != DomainRecoveryWorkflowState::Authorized {
+            if d.request_id != request.request_id
+                || d.status != DomainRecoveryWorkflowState::Authorized
+            {
                 return Ok(DomainRecoveryEnforcementDecision::Rejected);
             }
             if d.is_expired(crate::operations::get_now()) || d.is_consumed() {

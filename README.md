@@ -128,6 +128,26 @@ cargo run --bin tuff-cse-winfsctl -- export --volume D: --complete-plan <EXPORT_
 cargo run --bin tuff-cse-winfsctl -- recover --volume D: --cancel-plan <RECO_PLAN_ID> --confirm CONFIRM-CANCEL-001 --reason USER_CANCELLED
 ```
 
+## Current Phase: P6A (Enterprise Recovery Authority Boundary)
+
+P6A defines the first enterprise recovery boundary. It introduces offline authority, quorum, and recovery-decision metadata for imported or dev-generated enterprise recovery flows. It does **not** connect to live KMS/HSM, PKCS#11, cloud KMS SDKs, TPM APIs, driver I/O, or key-restoration logic.
+
+### P6A Highlights
+- `EnterpriseAuthorityPolicy`, `EnterpriseQuorumPolicy`, `EnterpriseRecoveryRequest`, `EnterpriseRecoveryDecision`, and `EnterpriseRecoveryEnforcer` are added as offline metadata and enforcement types.
+- `enterprise-authority`, `enterprise-quorum`, and `enterprise-recovery` CLI subcommands import, inspect, and evaluate offline records.
+- Enterprise recovery does not bypass P5C domain recovery, P5B domain approval, P4B local approval, or P3C manual confirmation.
+- Raw authority material, principals, KMS/HSM secrets, and key material are not persisted, displayed, or journaled.
+
+### CLI Examples
+```powershell
+cargo run --bin tuff-cse-winfsctl -- enterprise-authority import --policy examples/enterprise-authority-policy.example.json
+cargo run --bin tuff-cse-winfsctl -- enterprise-quorum import --policy examples/enterprise-quorum-policy.example.json
+cargo run --bin tuff-cse-winfsctl -- enterprise-recovery request --operation recover --volume D:
+TUFF_CSE_WINFS_ALLOW_DEV_ENTERPRISE_RECOVERY=1 cargo run --bin tuff-cse-winfsctl -- enterprise-recovery dev-approve --request-id <REQUEST_ID>
+```
+
+`TUFF_CSE_WINFS_ALLOW_DEV_ENTERPRISE_RECOVERY=1` is required for the dev approval and deny commands.
+
 ## Current Phase: P4A (Local Policy / Local Admin Approval Boundary)
 
 The project is currently in the **P4A** phase. This stage establishes the model and structural boundary for local administrator approvals.

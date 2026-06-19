@@ -1,0 +1,8 @@
+{
+  "policy_id": "EA-001",
+  "authority_fingerprint": "AUTH-FP-001",
+  "provider_kind": "ImportedOfflineAuthority",
+  "policy_hash": "",
+  "created_at": 1
+}
+

@@ -1,0 +1,12 @@
+{
+  "policy_id": "EQ-001",
+  "enterprise_authority_policy_id": "EA-001",
+  "rule": "Threshold",
+  "threshold": 1,
+  "members": [
+    "MEM-001"
+  ],
+  "policy_hash": "",
+  "created_at": 1
+}
+

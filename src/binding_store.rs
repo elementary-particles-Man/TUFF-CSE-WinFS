@@ -3,7 +3,12 @@ use crate::audit_signing::AuditPublicKeyRecord;
 use crate::binding::BindingDescriptor;
 use crate::domain_approval::{DomainApprovalDecision, DomainApprovalRequest};
 use crate::domain_policy::DomainPolicy;
-use crate::domain_recovery::{DomainRecoveryDecision, DomainRecoveryPackage, DomainRecoveryRequest};
+use crate::domain_recovery::{
+    DomainRecoveryDecision, DomainRecoveryPackage, DomainRecoveryRequest,
+};
+use crate::enterprise_authority::EnterpriseAuthorityPolicy;
+use crate::enterprise_quorum::EnterpriseQuorumPolicy;
+use crate::enterprise_recovery::{EnterpriseRecoveryDecision, EnterpriseRecoveryRequest};
 use crate::export_manifest::{ExportManifest, ExportPlan};
 use crate::group_policy_mapping::GroupPolicyMapping;
 use crate::key_material::KeyDerivationPlan;
@@ -53,6 +58,8 @@ impl BindingStore {
             "META/domain-policy",
             "META/group-policy",
             "META/offline-policy",
+            "META/enterprise-authority",
+            "META/enterprise-quorum",
             "KEYS/plans",
             "KEYS/export-plans",
             "KEYS/recovery",
@@ -70,6 +77,8 @@ impl BindingStore {
             "JRN/domain-recovery/requests",
             "JRN/domain-recovery/packages",
             "JRN/domain-recovery/decisions",
+            "JRN/enterprise-recovery/requests",
+            "JRN/enterprise-recovery/decisions",
             "JRN",
         ];
         for d in dirs {
@@ -456,7 +465,7 @@ impl BindingStore {
         let state = serde_json::from_reader(file)?;
         Ok(Some(state))
     }
-    
+
     pub fn save_domain_policy(&self, policy: &DomainPolicy) -> Result<()> {
         let path = self.root.join(format!(
             "META/domain-policy/{}.json",
@@ -480,16 +489,18 @@ impl BindingStore {
     }
 
     pub fn save_group_policy_mapping(&self, mapping: &GroupPolicyMapping) -> Result<()> {
-        let path = self.root.join(format!(
-            "META/group-policy/{}.json",
-            mapping.mapping_id
-        ));
+        let path = self
+            .root
+            .join(format!("META/group-policy/{}.json", mapping.mapping_id));
         let file = File::create(&path)?;
         serde_json::to_writer_pretty(file, mapping)?;
         Ok(())
     }
 
-    pub fn load_group_policy_mapping(&self, mapping_id: &str) -> Result<Option<GroupPolicyMapping>> {
+    pub fn load_group_policy_mapping(
+        &self,
+        mapping_id: &str,
+    ) -> Result<Option<GroupPolicyMapping>> {
         let path = self
             .root
             .join(format!("META/group-policy/{}.json", mapping_id));
@@ -502,16 +513,18 @@ impl BindingStore {
     }
 
     pub fn save_offline_policy_snapshot(&self, snapshot: &OfflinePolicySnapshot) -> Result<()> {
-        let path = self.root.join(format!(
-            "META/offline-policy/{}.json",
-            snapshot.snapshot_id
-        ));
+        let path = self
+            .root
+            .join(format!("META/offline-policy/{}.json", snapshot.snapshot_id));
         let file = File::create(&path)?;
         serde_json::to_writer_pretty(file, snapshot)?;
         Ok(())
     }
 
-    pub fn load_offline_policy_snapshot(&self, snapshot_id: &str) -> Result<Option<OfflinePolicySnapshot>> {
+    pub fn load_offline_policy_snapshot(
+        &self,
+        snapshot_id: &str,
+    ) -> Result<Option<OfflinePolicySnapshot>> {
         let path = self
             .root
             .join(format!("META/offline-policy/{}.json", snapshot_id));
@@ -522,7 +535,7 @@ impl BindingStore {
         let snapshot = serde_json::from_reader(file)?;
         Ok(Some(snapshot))
     }
-    
+
     pub fn save_domain_approval_request(&self, request: &DomainApprovalRequest) -> Result<()> {
         let path = self.root.join(format!(
             "JRN/domain-approvals/requests/{}.json",
@@ -533,7 +546,10 @@ impl BindingStore {
         Ok(())
     }
 
-    pub fn load_domain_approval_request(&self, request_id: &str) -> Result<Option<DomainApprovalRequest>> {
+    pub fn load_domain_approval_request(
+        &self,
+        request_id: &str,
+    ) -> Result<Option<DomainApprovalRequest>> {
         let path = self
             .root
             .join(format!("JRN/domain-approvals/requests/{}.json", request_id));
@@ -555,10 +571,14 @@ impl BindingStore {
         Ok(())
     }
 
-    pub fn load_domain_approval_decision(&self, decision_id: &str) -> Result<Option<DomainApprovalDecision>> {
-        let path = self
-            .root
-            .join(format!("JRN/domain-approvals/decisions/{}.json", decision_id));
+    pub fn load_domain_approval_decision(
+        &self,
+        decision_id: &str,
+    ) -> Result<Option<DomainApprovalDecision>> {
+        let path = self.root.join(format!(
+            "JRN/domain-approvals/decisions/{}.json",
+            decision_id
+        ));
         if !path.exists() {
             return Ok(None);
         }
@@ -578,7 +598,7 @@ impl BindingStore {
         }
         Ok(())
     }
-    
+
     pub fn save_domain_recovery_request(&self, request: &DomainRecoveryRequest) -> Result<()> {
         let path = self.root.join(format!(
             "JRN/domain-recovery/requests/{}.json",
@@ -589,7 +609,10 @@ impl BindingStore {
         Ok(())
     }
 
-    pub fn load_domain_recovery_request(&self, request_id: &str) -> Result<Option<DomainRecoveryRequest>> {
+    pub fn load_domain_recovery_request(
+        &self,
+        request_id: &str,
+    ) -> Result<Option<DomainRecoveryRequest>> {
         let path = self
             .root
             .join(format!("JRN/domain-recovery/requests/{}.json", request_id));
@@ -611,7 +634,10 @@ impl BindingStore {
         Ok(())
     }
 
-    pub fn load_domain_recovery_package(&self, package_id: &str) -> Result<Option<DomainRecoveryPackage>> {
+    pub fn load_domain_recovery_package(
+        &self,
+        package_id: &str,
+    ) -> Result<Option<DomainRecoveryPackage>> {
         let path = self
             .root
             .join(format!("JRN/domain-recovery/packages/{}.json", package_id));
@@ -633,10 +659,14 @@ impl BindingStore {
         Ok(())
     }
 
-    pub fn load_domain_recovery_decision(&self, decision_id: &str) -> Result<Option<DomainRecoveryDecision>> {
-        let path = self
-            .root
-            .join(format!("JRN/domain-recovery/decisions/{}.json", decision_id));
+    pub fn load_domain_recovery_decision(
+        &self,
+        decision_id: &str,
+    ) -> Result<Option<DomainRecoveryDecision>> {
+        let path = self.root.join(format!(
+            "JRN/domain-recovery/decisions/{}.json",
+            decision_id
+        ));
         if !path.exists() {
             return Ok(None);
         }
@@ -644,7 +674,7 @@ impl BindingStore {
         let decision = serde_json::from_reader(file)?;
         Ok(Some(decision))
     }
-    
+
     pub fn mark_domain_recovery_consumed(&self, decision_id: &str) -> Result<()> {
         if let Some(mut decision) = self.load_domain_recovery_decision(decision_id)? {
             let now = SystemTime::now()
@@ -653,6 +683,211 @@ impl BindingStore {
                 .as_secs();
             decision.consumed_at = Some(now);
             self.save_domain_recovery_decision(&decision)?;
+        }
+        Ok(())
+    }
+
+    pub fn save_enterprise_authority_policy(
+        &self,
+        policy: &EnterpriseAuthorityPolicy,
+    ) -> Result<()> {
+        let path = self.root.join(format!(
+            "META/enterprise-authority/{}.json",
+            policy.policy_id.0
+        ));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, policy)?;
+        Ok(())
+    }
+
+    pub fn load_enterprise_authority_policy(
+        &self,
+        policy_id: &str,
+    ) -> Result<Option<EnterpriseAuthorityPolicy>> {
+        let path = self
+            .root
+            .join(format!("META/enterprise-authority/{}.json", policy_id));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let policy = serde_json::from_reader(file)?;
+        Ok(Some(policy))
+    }
+
+    pub fn list_enterprise_authority_policies(&self) -> Result<Vec<EnterpriseAuthorityPolicy>> {
+        let dir = self.root.join("META/enterprise-authority");
+        let mut policies = Vec::new();
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            if entry.file_type()?.is_file() {
+                let file = File::open(entry.path())?;
+                let policy = serde_json::from_reader(file)?;
+                policies.push(policy);
+            }
+        }
+        Ok(policies)
+    }
+
+    pub fn save_enterprise_quorum_policy(&self, policy: &EnterpriseQuorumPolicy) -> Result<()> {
+        let path = self.root.join(format!(
+            "META/enterprise-quorum/{}.json",
+            policy.policy_id.0
+        ));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, policy)?;
+        Ok(())
+    }
+
+    pub fn load_enterprise_quorum_policy(
+        &self,
+        policy_id: &str,
+    ) -> Result<Option<EnterpriseQuorumPolicy>> {
+        let path = self
+            .root
+            .join(format!("META/enterprise-quorum/{}.json", policy_id));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let policy = serde_json::from_reader(file)?;
+        Ok(Some(policy))
+    }
+
+    pub fn list_enterprise_quorum_policies(&self) -> Result<Vec<EnterpriseQuorumPolicy>> {
+        let dir = self.root.join("META/enterprise-quorum");
+        let mut policies = Vec::new();
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            if entry.file_type()?.is_file() {
+                let file = File::open(entry.path())?;
+                let policy = serde_json::from_reader(file)?;
+                policies.push(policy);
+            }
+        }
+        Ok(policies)
+    }
+
+    pub fn save_enterprise_recovery_request(
+        &self,
+        request: &EnterpriseRecoveryRequest,
+    ) -> Result<()> {
+        let path = self.root.join(format!(
+            "JRN/enterprise-recovery/requests/{}.json",
+            request.request_id.0
+        ));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, request)?;
+        Ok(())
+    }
+
+    pub fn load_enterprise_recovery_request(
+        &self,
+        request_id: &str,
+    ) -> Result<Option<EnterpriseRecoveryRequest>> {
+        let path = self.root.join(format!(
+            "JRN/enterprise-recovery/requests/{}.json",
+            request_id
+        ));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let request = serde_json::from_reader(file)?;
+        Ok(Some(request))
+    }
+
+    pub fn list_enterprise_recovery_requests(&self) -> Result<Vec<EnterpriseRecoveryRequest>> {
+        let dir = self.root.join("JRN/enterprise-recovery/requests");
+        let mut requests = Vec::new();
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            if entry.file_type()?.is_file() {
+                let file = File::open(entry.path())?;
+                let request = serde_json::from_reader(file)?;
+                requests.push(request);
+            }
+        }
+        Ok(requests)
+    }
+
+    pub fn save_enterprise_recovery_decision(
+        &self,
+        decision: &EnterpriseRecoveryDecision,
+    ) -> Result<()> {
+        let path = self.root.join(format!(
+            "JRN/enterprise-recovery/decisions/{}.json",
+            decision.decision_id.0
+        ));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, decision)?;
+        Ok(())
+    }
+
+    pub fn load_enterprise_recovery_decision(
+        &self,
+        decision_id: &str,
+    ) -> Result<Option<EnterpriseRecoveryDecision>> {
+        let path = self.root.join(format!(
+            "JRN/enterprise-recovery/decisions/{}.json",
+            decision_id
+        ));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let decision = serde_json::from_reader(file)?;
+        Ok(Some(decision))
+    }
+
+    pub fn list_enterprise_recovery_decisions(&self) -> Result<Vec<EnterpriseRecoveryDecision>> {
+        let dir = self.root.join("JRN/enterprise-recovery/decisions");
+        let mut decisions = Vec::new();
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            if entry.file_type()?.is_file() {
+                let file = File::open(entry.path())?;
+                let decision = serde_json::from_reader(file)?;
+                decisions.push(decision);
+            }
+        }
+        Ok(decisions)
+    }
+
+    pub fn find_valid_enterprise_recovery_decision(
+        &self,
+        request: &EnterpriseRecoveryRequest,
+    ) -> Result<Option<EnterpriseRecoveryDecision>> {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        for decision in self.list_enterprise_recovery_decisions()? {
+            if decision.operation_kind == request.operation_kind
+                && decision.volume_hash == request.volume_hash
+                && decision.domain_recovery_request_id == request.domain_recovery_request_id
+                && decision.domain_recovery_package_id == request.domain_recovery_package_id
+                && decision.domain_recovery_decision_id == request.domain_recovery_decision_id
+                && decision.enterprise_authority_policy_id == request.enterprise_authority_policy_id
+                && decision.enterprise_quorum_policy_id == request.enterprise_quorum_policy_id
+                && !decision.is_expired(now)
+                && !decision.is_consumed()
+            {
+                return Ok(Some(decision));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn mark_enterprise_recovery_consumed(&self, decision_id: &str) -> Result<()> {
+        if let Some(mut decision) = self.load_enterprise_recovery_decision(decision_id)? {
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            decision.consumed_at = Some(now);
+            decision.status = crate::enterprise_recovery::EnterpriseRecoveryStatus::Consumed;
+            self.save_enterprise_recovery_decision(&decision)?;
         }
         Ok(())
     }

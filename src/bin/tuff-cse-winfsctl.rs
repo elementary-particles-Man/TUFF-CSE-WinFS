@@ -7,6 +7,15 @@ use tuff_cse_winfs::audit_signing::{self, AuditSigner, DevAuditSigner};
 use tuff_cse_winfs::binding::{self, BindingInputSnapshot};
 use tuff_cse_winfs::binding_policy;
 use tuff_cse_winfs::binding_store::BindingStore;
+use tuff_cse_winfs::enterprise_authority::{self, EnterpriseAuthorityPolicy};
+use tuff_cse_winfs::enterprise_quorum::{self, EnterpriseQuorumPolicy};
+use tuff_cse_winfs::enterprise_recovery::{
+    self, EnterpriseRecoveryDecision, EnterpriseRecoveryRequest, EnterpriseRecoverySourceKind,
+    EnterpriseRecoveryStatus,
+};
+use tuff_cse_winfs::enterprise_recovery_enforcement::{
+    EnterpriseRecoveryEnforcementDecision, EnterpriseRecoveryEnforcer,
+};
 use tuff_cse_winfs::export_manifest::ExportRecipient;
 use tuff_cse_winfs::export_policy;
 use tuff_cse_winfs::key_material;
@@ -196,6 +205,21 @@ enum Commands {
         #[command(subcommand)]
         sub: ApprovalCommands,
     },
+    /// Enterprise authority management
+    EnterpriseAuthority {
+        #[command(subcommand)]
+        sub: EnterpriseAuthorityCommands,
+    },
+    /// Enterprise quorum management
+    EnterpriseQuorum {
+        #[command(subcommand)]
+        sub: EnterpriseQuorumCommands,
+    },
+    /// Enterprise recovery management
+    EnterpriseRecovery {
+        #[command(subcommand)]
+        sub: EnterpriseRecoveryCommands,
+    },
     /// Audit signing management
     AuditSigning {
         #[command(subcommand)]
@@ -286,6 +310,132 @@ enum ApprovalCommands {
     },
 }
 
+#[derive(Subcommand)]
+enum EnterpriseAuthorityCommands {
+    Import {
+        #[arg(long)]
+        policy: PathBuf,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    Status {
+        #[arg(long)]
+        policy_id: Option<String>,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    Evaluate {
+        #[arg(long)]
+        policy: PathBuf,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum EnterpriseQuorumCommands {
+    Import {
+        #[arg(long)]
+        policy: PathBuf,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    Status {
+        #[arg(long)]
+        policy_id: Option<String>,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    Evaluate {
+        #[arg(long)]
+        policy: PathBuf,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum EnterpriseRecoveryCommands {
+    Request {
+        #[arg(long)]
+        operation: String,
+        #[arg(long)]
+        volume: String,
+        #[arg(long)]
+        domain_recovery_request_id: Option<String>,
+        #[arg(long)]
+        domain_recovery_package_id: Option<String>,
+        #[arg(long)]
+        domain_recovery_decision_id: Option<String>,
+        #[arg(long)]
+        enterprise_authority_policy_id: Option<String>,
+        #[arg(long)]
+        enterprise_quorum_policy_id: Option<String>,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    ImportDecision {
+        #[arg(long)]
+        decision: PathBuf,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    DevApprove {
+        #[arg(long)]
+        request_id: String,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    DevDeny {
+        #[arg(long)]
+        request_id: String,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    Status {
+        #[arg(long = "enterprise-recovery-decision")]
+        enterprise_recovery_decision: Option<String>,
+        #[arg(long)]
+        request_id: Option<String>,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    Evaluate {
+        #[arg(long)]
+        operation: String,
+        #[arg(long)]
+        volume: String,
+        #[arg(long = "enterprise-recovery-decision")]
+        enterprise_recovery_decision: String,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
 fn load_policy_or_default(path: Option<PathBuf>) -> Result<ManagedPolicy> {
     match path {
         Some(p) => managed_policy::load_managed_policy(p),
@@ -333,6 +483,9 @@ fn handle_operation(
             .unwrap()
             .as_secs(),
         approval_id,
+        enterprise_authority_policy_id: None,
+        enterprise_quorum_policy_id: None,
+        enterprise_recovery_decision_id: None,
     };
 
     let result =
@@ -437,6 +590,9 @@ fn handle_export(
                 .unwrap()
                 .as_secs(),
             approval_id,
+            enterprise_authority_policy_id: None,
+            enterprise_quorum_policy_id: None,
+            enterprise_recovery_decision_id: None,
         };
         let result = operations::execute_manual_flow_operation(
             request,
@@ -470,6 +626,9 @@ fn handle_export(
                 .unwrap()
                 .as_secs(),
             approval_id,
+            enterprise_authority_policy_id: None,
+            enterprise_quorum_policy_id: None,
+            enterprise_recovery_decision_id: None,
         };
         let result = operations::execute_manual_flow_operation(
             request,
@@ -516,6 +675,9 @@ fn handle_export(
             .unwrap()
             .as_secs(),
         approval_id,
+        enterprise_authority_policy_id: None,
+        enterprise_quorum_policy_id: None,
+        enterprise_recovery_decision_id: None,
     };
 
     let result = operations::execute_export_operation(
@@ -589,6 +751,9 @@ fn handle_recover(
                 .unwrap()
                 .as_secs(),
             approval_id,
+            enterprise_authority_policy_id: None,
+            enterprise_quorum_policy_id: None,
+            enterprise_recovery_decision_id: None,
         };
         let result = operations::execute_manual_flow_operation(
             request,
@@ -629,6 +794,9 @@ fn handle_recover(
             .unwrap()
             .as_secs(),
         approval_id,
+        enterprise_authority_policy_id: None,
+        enterprise_quorum_policy_id: None,
+        enterprise_recovery_decision_id: None,
     };
 
     let result = operations::execute_recover_operation(
@@ -701,6 +869,9 @@ fn handle_rebind(
                 .unwrap()
                 .as_secs(),
             approval_id,
+            enterprise_authority_policy_id: None,
+            enterprise_quorum_policy_id: None,
+            enterprise_recovery_decision_id: None,
         };
         let result = operations::execute_manual_flow_operation(
             request,
@@ -741,6 +912,9 @@ fn handle_rebind(
             .unwrap()
             .as_secs(),
         approval_id,
+        enterprise_authority_policy_id: None,
+        enterprise_quorum_policy_id: None,
+        enterprise_recovery_decision_id: None,
     };
 
     let result = operations::execute_rebind_operation(
@@ -804,6 +978,467 @@ fn handle_audit_signing(
 
 fn handle_approval(sub: ApprovalCommands) -> Result<()> {
     // ... approval logic ...
+    Ok(())
+}
+
+fn handle_enterprise_authority(sub: EnterpriseAuthorityCommands) -> Result<()> {
+    match sub {
+        EnterpriseAuthorityCommands::Import {
+            policy,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            let file = std::fs::File::open(policy)?;
+            let policy: EnterpriseAuthorityPolicy = serde_json::from_reader(file)?;
+            let policy = enterprise_authority::normalize_enterprise_authority_policy(policy);
+            store.save_enterprise_authority_policy(&policy)?;
+            if json {
+                println!("{}", serde_json::to_string(&policy)?);
+            } else {
+                println!(
+                    "Enterprise authority policy imported: {}",
+                    policy.policy_id.0
+                );
+            }
+        }
+        EnterpriseAuthorityCommands::Status {
+            policy_id,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            if let Some(policy_id) = policy_id {
+                if let Some(policy) = store.load_enterprise_authority_policy(&policy_id)? {
+                    if json {
+                        println!("{}", serde_json::to_string(&policy)?);
+                    } else {
+                        println!("Enterprise authority policy: {}", policy.policy_id.0);
+                        println!(
+                            "Hash: {}",
+                            policy
+                                .policy_hash
+                                .as_ref()
+                                .map(|h| h.0.as_str())
+                                .unwrap_or("")
+                        );
+                    }
+                }
+            } else {
+                let policies = store.list_enterprise_authority_policies()?;
+                if json {
+                    println!("{}", serde_json::to_string(&policies)?);
+                } else {
+                    println!("Enterprise authority policies: {}", policies.len());
+                }
+            }
+        }
+        EnterpriseAuthorityCommands::Evaluate {
+            policy,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            let file = std::fs::File::open(policy)?;
+            let policy: EnterpriseAuthorityPolicy = serde_json::from_reader(file)?;
+            let policy = enterprise_authority::normalize_enterprise_authority_policy(policy);
+            let output = serde_json::json!({
+                "policy_id": policy.policy_id.0,
+                "authority_fingerprint": policy.authority_fingerprint.0,
+                "provider_kind": policy.provider_kind,
+                "policy_hash": policy.policy_hash.as_ref().map(|h| h.0.clone()).unwrap_or_default(),
+                "created_at": policy.created_at,
+                "store_root": store.root_path(),
+            });
+            if json {
+                println!("{}", serde_json::to_string(&output)?);
+            } else {
+                println!(
+                    "Enterprise authority policy validated: {}",
+                    policy.policy_id.0
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+fn handle_enterprise_quorum(sub: EnterpriseQuorumCommands) -> Result<()> {
+    match sub {
+        EnterpriseQuorumCommands::Import {
+            policy,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            let file = std::fs::File::open(policy)?;
+            let policy: EnterpriseQuorumPolicy = serde_json::from_reader(file)?;
+            let policy = enterprise_quorum::normalize_enterprise_quorum_policy(policy)?;
+            store.save_enterprise_quorum_policy(&policy)?;
+            if json {
+                println!("{}", serde_json::to_string(&policy)?);
+            } else {
+                println!("Enterprise quorum policy imported: {}", policy.policy_id.0);
+            }
+        }
+        EnterpriseQuorumCommands::Status {
+            policy_id,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            if let Some(policy_id) = policy_id {
+                if let Some(policy) = store.load_enterprise_quorum_policy(&policy_id)? {
+                    if json {
+                        println!("{}", serde_json::to_string(&policy)?);
+                    } else {
+                        println!("Enterprise quorum policy: {}", policy.policy_id.0);
+                    }
+                }
+            } else {
+                let policies = store.list_enterprise_quorum_policies()?;
+                if json {
+                    println!("{}", serde_json::to_string(&policies)?);
+                } else {
+                    println!("Enterprise quorum policies: {}", policies.len());
+                }
+            }
+        }
+        EnterpriseQuorumCommands::Evaluate {
+            policy,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            let file = std::fs::File::open(policy)?;
+            let policy: EnterpriseQuorumPolicy = serde_json::from_reader(file)?;
+            let policy = enterprise_quorum::normalize_enterprise_quorum_policy(policy)?;
+            let evaluation = enterprise_quorum::evaluate_quorum_decision(&policy, &policy.members)?;
+            let output = serde_json::json!({
+                "policy_id": policy.policy_id.0,
+                "authority_policy_id": policy.enterprise_authority_policy_id.0,
+                "threshold": policy.threshold.0,
+                "evaluation": evaluation,
+                "store_root": store.root_path(),
+            });
+            if json {
+                println!("{}", serde_json::to_string(&output)?);
+            } else {
+                println!("Enterprise quorum policy validated: {}", policy.policy_id.0);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn parse_operation_kind(name: &str) -> Result<OperationKind> {
+    match name.to_ascii_lowercase().as_str() {
+        "recover" => Ok(OperationKind::Recover),
+        "rebind" => Ok(OperationKind::Rebind),
+        "export" => Ok(OperationKind::Export),
+        "bind" => Ok(OperationKind::Bind),
+        "unlock" => Ok(OperationKind::Unlock),
+        "lock" => Ok(OperationKind::Lock),
+        "eject" => Ok(OperationKind::Eject),
+        "status" => Ok(OperationKind::Status),
+        "audit" => Ok(OperationKind::Audit),
+        _ => Err(anyhow!("unsupported operation kind")),
+    }
+}
+
+fn default_enterprise_policy_id(prefix: &str, volume: &str) -> String {
+    format!("{}-{}", prefix, BindingStore::volume_hash(volume))
+}
+
+fn build_enterprise_recovery_request(
+    operation: String,
+    volume: String,
+    domain_recovery_request_id: Option<String>,
+    domain_recovery_package_id: Option<String>,
+    domain_recovery_decision_id: Option<String>,
+    enterprise_authority_policy_id: Option<String>,
+    enterprise_quorum_policy_id: Option<String>,
+    store: &BindingStore,
+) -> Result<EnterpriseRecoveryRequest> {
+    let op = parse_operation_kind(&operation)?;
+    let vol_hash = BindingStore::volume_hash(&volume);
+    let authority_policy_id = enterprise_authority_policy_id.unwrap_or_else(|| {
+        store
+            .list_enterprise_authority_policies()
+            .ok()
+            .and_then(|mut policies| policies.pop().map(|p| p.policy_id.0))
+            .unwrap_or_else(|| default_enterprise_policy_id("EA", &volume))
+    });
+    let quorum_policy_id = enterprise_quorum_policy_id.unwrap_or_else(|| {
+        store
+            .list_enterprise_quorum_policies()
+            .ok()
+            .and_then(|mut policies| policies.pop().map(|p| p.policy_id.0))
+            .unwrap_or_else(|| default_enterprise_policy_id("EQ", &volume))
+    });
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    Ok(EnterpriseRecoveryRequest {
+        request_id: enterprise_recovery::EnterpriseRecoveryRequestId(format!(
+            "ERQ-{}-{}",
+            op as u32, now
+        )),
+        operation_kind: op,
+        volume_hash: vol_hash.clone(),
+        domain_recovery_request_id: domain_recovery_request_id
+            .unwrap_or_else(|| format!("DR-REQ-{}", vol_hash)),
+        domain_recovery_package_id: domain_recovery_package_id
+            .unwrap_or_else(|| format!("DR-PKG-{}", vol_hash)),
+        domain_recovery_decision_id: domain_recovery_decision_id
+            .unwrap_or_else(|| format!("DR-DEC-{}", vol_hash)),
+        enterprise_authority_policy_id: enterprise_authority::EnterpriseAuthorityPolicyId(
+            authority_policy_id,
+        ),
+        enterprise_quorum_policy_id: enterprise_quorum::EnterpriseQuorumPolicyId(quorum_policy_id),
+        source_kind: EnterpriseRecoverySourceKind::ImportedOfflineDecision,
+        created_at: now,
+    })
+}
+
+fn handle_enterprise_recovery(sub: EnterpriseRecoveryCommands) -> Result<()> {
+    match sub {
+        EnterpriseRecoveryCommands::Request {
+            operation,
+            volume,
+            domain_recovery_request_id,
+            domain_recovery_package_id,
+            domain_recovery_decision_id,
+            enterprise_authority_policy_id,
+            enterprise_quorum_policy_id,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            let request = build_enterprise_recovery_request(
+                operation,
+                volume,
+                domain_recovery_request_id,
+                domain_recovery_package_id,
+                domain_recovery_decision_id,
+                enterprise_authority_policy_id,
+                enterprise_quorum_policy_id,
+                &store,
+            )?;
+            store.save_enterprise_recovery_request(&request)?;
+            if json {
+                println!("{}", serde_json::to_string(&request)?);
+            } else {
+                println!("Enterprise recovery request: {}", request.request_id.0);
+            }
+        }
+        EnterpriseRecoveryCommands::ImportDecision {
+            decision,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            let file = std::fs::File::open(decision)?;
+            let mut decision: EnterpriseRecoveryDecision = serde_json::from_reader(file)?;
+            let computed =
+                enterprise_recovery::compute_enterprise_recovery_decision_hash(&decision);
+            if decision.decision_hash.0.is_empty() {
+                decision.decision_hash = computed;
+            }
+            store.save_enterprise_recovery_decision(&decision)?;
+            if json {
+                println!("{}", serde_json::to_string(&decision)?);
+            } else {
+                println!(
+                    "Enterprise recovery decision imported: {}",
+                    decision.decision_id.0
+                );
+            }
+        }
+        EnterpriseRecoveryCommands::DevApprove {
+            request_id,
+            store_root,
+            json,
+        } => {
+            if std::env::var("TUFF_CSE_WINFS_ALLOW_DEV_ENTERPRISE_RECOVERY")
+                .ok()
+                .as_deref()
+                != Some("1")
+            {
+                return Err(anyhow!(
+                    "TUFF_CSE_WINFS_ALLOW_DEV_ENTERPRISE_RECOVERY=1 is required"
+                ));
+            }
+            let store = open_store(store_root)?;
+            let request = store
+                .load_enterprise_recovery_request(&request_id)?
+                .ok_or_else(|| anyhow!("enterprise recovery request not found"))?;
+            let authority_policy = store
+                .load_enterprise_authority_policy(&request.enterprise_authority_policy_id.0)?
+                .ok_or_else(|| anyhow!("enterprise authority policy not found"))?;
+            let quorum_policy = store
+                .load_enterprise_quorum_policy(&request.enterprise_quorum_policy_id.0)?
+                .ok_or_else(|| anyhow!("enterprise quorum policy not found"))?;
+            let approvers = quorum_policy
+                .members
+                .iter()
+                .take(quorum_policy.threshold.0 as usize)
+                .cloned()
+                .collect::<Vec<_>>();
+            let decision = enterprise_recovery::build_enterprise_recovery_decision(
+                enterprise_recovery::EnterpriseRecoveryDecisionId(format!(
+                    "ERD-{}",
+                    request.request_id.0
+                )),
+                request.operation_kind,
+                request.volume_hash.clone(),
+                request.domain_recovery_request_id.clone(),
+                request.domain_recovery_package_id.clone(),
+                request.domain_recovery_decision_id.clone(),
+                authority_policy.policy_id,
+                quorum_policy.policy_id,
+                approvers,
+                request.created_at,
+                request.created_at + 3600,
+                EnterpriseRecoveryStatus::Approved,
+                EnterpriseRecoverySourceKind::DevGeneratedDecision,
+            );
+            store.save_enterprise_recovery_decision(&decision)?;
+            if json {
+                println!("{}", serde_json::to_string(&decision)?);
+            } else {
+                println!(
+                    "Enterprise recovery decision approved: {}",
+                    decision.decision_id.0
+                );
+            }
+        }
+        EnterpriseRecoveryCommands::DevDeny {
+            request_id,
+            store_root,
+            json,
+        } => {
+            if std::env::var("TUFF_CSE_WINFS_ALLOW_DEV_ENTERPRISE_RECOVERY")
+                .ok()
+                .as_deref()
+                != Some("1")
+            {
+                return Err(anyhow!(
+                    "TUFF_CSE_WINFS_ALLOW_DEV_ENTERPRISE_RECOVERY=1 is required"
+                ));
+            }
+            let store = open_store(store_root)?;
+            let request = store
+                .load_enterprise_recovery_request(&request_id)?
+                .ok_or_else(|| anyhow!("enterprise recovery request not found"))?;
+            let decision = enterprise_recovery::build_enterprise_recovery_decision(
+                enterprise_recovery::EnterpriseRecoveryDecisionId(format!(
+                    "ERD-{}",
+                    request.request_id.0
+                )),
+                request.operation_kind,
+                request.volume_hash.clone(),
+                request.domain_recovery_request_id.clone(),
+                request.domain_recovery_package_id.clone(),
+                request.domain_recovery_decision_id.clone(),
+                request.enterprise_authority_policy_id.clone(),
+                request.enterprise_quorum_policy_id.clone(),
+                Vec::new(),
+                request.created_at,
+                request.created_at + 3600,
+                EnterpriseRecoveryStatus::Denied,
+                EnterpriseRecoverySourceKind::DevGeneratedDecision,
+            );
+            store.save_enterprise_recovery_decision(&decision)?;
+            if json {
+                println!("{}", serde_json::to_string(&decision)?);
+            } else {
+                println!(
+                    "Enterprise recovery decision denied: {}",
+                    decision.decision_id.0
+                );
+            }
+        }
+        EnterpriseRecoveryCommands::Status {
+            enterprise_recovery_decision,
+            request_id,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            if let Some(decision_id) = enterprise_recovery_decision {
+                if let Some(decision) = store.load_enterprise_recovery_decision(&decision_id)? {
+                    if json {
+                        println!("{}", serde_json::to_string(&decision)?);
+                    } else {
+                        println!("Enterprise recovery decision: {}", decision.decision_id.0);
+                        println!("Status: {:?}", decision.status);
+                    }
+                }
+            } else if let Some(request_id) = request_id {
+                if let Some(request) = store.load_enterprise_recovery_request(&request_id)? {
+                    if json {
+                        println!("{}", serde_json::to_string(&request)?);
+                    } else {
+                        println!("Enterprise recovery request: {}", request.request_id.0);
+                    }
+                }
+            }
+        }
+        EnterpriseRecoveryCommands::Evaluate {
+            operation,
+            volume,
+            enterprise_recovery_decision,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            let decision = store
+                .load_enterprise_recovery_decision(&enterprise_recovery_decision)?
+                .ok_or_else(|| anyhow!("enterprise recovery decision not found"))?;
+            let request = EnterpriseRecoveryRequest {
+                request_id: enterprise_recovery::EnterpriseRecoveryRequestId(format!(
+                    "ERQ-{}",
+                    decision.decision_id.0
+                )),
+                operation_kind: parse_operation_kind(&operation)?,
+                volume_hash: BindingStore::volume_hash(&volume),
+                domain_recovery_request_id: decision.domain_recovery_request_id.clone(),
+                domain_recovery_package_id: decision.domain_recovery_package_id.clone(),
+                domain_recovery_decision_id: decision.domain_recovery_decision_id.clone(),
+                enterprise_authority_policy_id: decision.enterprise_authority_policy_id.clone(),
+                enterprise_quorum_policy_id: decision.enterprise_quorum_policy_id.clone(),
+                source_kind: decision.source_kind,
+                created_at: decision.valid_from,
+            };
+            let authority_policy = store
+                .load_enterprise_authority_policy(&request.enterprise_authority_policy_id.0)?
+                .ok_or_else(|| anyhow!("enterprise authority policy not found"))?;
+            let quorum_policy = store
+                .load_enterprise_quorum_policy(&request.enterprise_quorum_policy_id.0)?
+                .ok_or_else(|| anyhow!("enterprise quorum policy not found"))?;
+            let enforcer = EnterpriseRecoveryEnforcer::new(&store);
+            let enforcement = enforcer.check_enterprise_recovery(
+                &request,
+                Some(&decision),
+                Some(&authority_policy),
+                Some(&quorum_policy),
+            )?;
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string(&serde_json::json!({
+                        "decision_id": decision.decision_id.0,
+                        "enforcement": enforcement,
+                        "status": decision.status,
+                    }))?
+                );
+            } else {
+                println!("Enterprise recovery evaluation: {:?}", enforcement);
+            }
+        }
+    }
     Ok(())
 }
 
@@ -1028,6 +1663,9 @@ fn main() -> Result<()> {
             )?;
         }
         Commands::Approval { sub } => handle_approval(sub)?,
+        Commands::EnterpriseAuthority { sub } => handle_enterprise_authority(sub)?,
+        Commands::EnterpriseQuorum { sub } => handle_enterprise_quorum(sub)?,
+        Commands::EnterpriseRecovery { sub } => handle_enterprise_recovery(sub)?,
         Commands::AuditSigning { sub } => match &sub {
             AuditSigningCommands::Init { volume, store_root } => {
                 handle_audit_signing(&sub, volume.clone(), store_root.clone())

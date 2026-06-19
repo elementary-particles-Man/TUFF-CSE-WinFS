@@ -1,0 +1,20 @@
+{
+  "decision_id": "ERD-001",
+  "operation_kind": "Recover",
+  "volume_hash": "8f9e0f3a8e3f6fbe5d2f8f4d6e3f1b2c",
+  "domain_recovery_request_id": "DRQ-001",
+  "domain_recovery_package_id": "DRP-001",
+  "domain_recovery_decision_id": "DRD-001",
+  "enterprise_authority_policy_id": "EA-001",
+  "enterprise_quorum_policy_id": "EQ-001",
+  "approver_fingerprints": [
+    "MEM-001"
+  ],
+  "decision_hash": "",
+  "valid_from": 1,
+  "valid_until": 18446744073709551615,
+  "consumed_at": null,
+  "status": "Approved",
+  "source_kind": "ImportedOfflineDecision"
+}
+

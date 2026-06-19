@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
-use crate::domain_principal::{DomainAuthorityFingerprint};
+use crate::domain_principal::DomainAuthorityFingerprint;
 use crate::operations::OperationKind;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DomainRecoveryWorkflowState {

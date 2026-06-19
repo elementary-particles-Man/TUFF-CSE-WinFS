@@ -15,6 +15,9 @@ mod tests {
             policy_id: "test-policy".to_string(),
             timestamp: 0,
             approval_id,
+            enterprise_authority_policy_id: None,
+            enterprise_quorum_policy_id: None,
+            enterprise_recovery_decision_id: None,
         }
     }
 

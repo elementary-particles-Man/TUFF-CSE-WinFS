@@ -1,5 +1,9 @@
 use crate::audit_chain::{canonicalize_journal_payload, compute_chain_hash, compute_record_hash};
 use crate::audit_signing::AuditSigner;
+use crate::enterprise_recovery::EnterpriseRecoveryStatus;
+use crate::enterprise_recovery_enforcement::{
+    EnterpriseRecoveryEnforcementDecision, EnterpriseRecoveryRejectionReason,
+};
 use crate::operations::{OperationKind, OperationStatus};
 use crate::volume_state::VolumeBindingState;
 use anyhow::Result;
@@ -34,6 +38,13 @@ pub struct OperationJournalRecord {
     pub manual_flow_id: Option<String>,
     pub approval_id: Option<String>,
     pub decision_id: Option<String>,
+    pub enterprise_authority_policy_id: Option<String>,
+    pub enterprise_quorum_policy_id: Option<String>,
+    pub enterprise_recovery_request_id: Option<String>,
+    pub enterprise_recovery_decision_id: Option<String>,
+    pub enterprise_recovery_status: Option<EnterpriseRecoveryStatus>,
+    pub enterprise_recovery_enforcement_status: Option<EnterpriseRecoveryEnforcementDecision>,
+    pub enterprise_recovery_rejection_reason: Option<EnterpriseRecoveryRejectionReason>,
     pub approval_status: Option<String>,
     pub recovery_reason: Option<String>,
     pub reason: String,
