@@ -7,6 +7,7 @@ use crate::domain_recovery::{
     DomainRecoveryDecision, DomainRecoveryPackage, DomainRecoveryRequest,
 };
 use crate::enterprise_authority::EnterpriseAuthorityPolicy;
+use crate::enterprise_provider::{EnterpriseProviderAttestationSummary, EnterpriseProviderPolicy};
 use crate::enterprise_quorum::EnterpriseQuorumPolicy;
 use crate::enterprise_recovery::{EnterpriseRecoveryDecision, EnterpriseRecoveryRequest};
 use crate::export_manifest::{ExportManifest, ExportPlan};
@@ -59,6 +60,7 @@ impl BindingStore {
             "META/group-policy",
             "META/offline-policy",
             "META/enterprise-authority",
+            "META/enterprise-provider",
             "META/enterprise-quorum",
             "KEYS/plans",
             "KEYS/export-plans",
@@ -79,6 +81,7 @@ impl BindingStore {
             "JRN/domain-recovery/decisions",
             "JRN/enterprise-recovery/requests",
             "JRN/enterprise-recovery/decisions",
+            "JRN/enterprise-provider/attestations",
             "JRN",
         ];
         for d in dirs {
@@ -852,6 +855,125 @@ impl BindingStore {
             }
         }
         Ok(decisions)
+    }
+
+    pub fn save_enterprise_provider_policy(&self, policy: &EnterpriseProviderPolicy) -> Result<()> {
+        let path = self.root.join(format!(
+            "META/enterprise-provider/{}.json",
+            policy.policy_id.0
+        ));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, policy)?;
+        Ok(())
+    }
+
+    pub fn load_enterprise_provider_policy(
+        &self,
+        policy_id: &str,
+    ) -> Result<Option<EnterpriseProviderPolicy>> {
+        let path = self
+            .root
+            .join(format!("META/enterprise-provider/{}.json", policy_id));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let policy = serde_json::from_reader(file)?;
+        Ok(Some(policy))
+    }
+
+    pub fn list_enterprise_provider_policies(&self) -> Result<Vec<EnterpriseProviderPolicy>> {
+        let dir = self.root.join("META/enterprise-provider");
+        let mut policies = Vec::new();
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            if entry.file_type()?.is_file() {
+                let file = File::open(entry.path())?;
+                let policy = serde_json::from_reader(file)?;
+                policies.push(policy);
+            }
+        }
+        Ok(policies)
+    }
+
+    pub fn save_enterprise_provider_attestation(
+        &self,
+        attestation: &EnterpriseProviderAttestationSummary,
+    ) -> Result<()> {
+        let path = self.root.join(format!(
+            "JRN/enterprise-provider/attestations/{}.json",
+            attestation.attestation_id.0
+        ));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, attestation)?;
+        Ok(())
+    }
+
+    pub fn load_enterprise_provider_attestation(
+        &self,
+        attestation_id: &str,
+    ) -> Result<Option<EnterpriseProviderAttestationSummary>> {
+        let path = self.root.join(format!(
+            "JRN/enterprise-provider/attestations/{}.json",
+            attestation_id
+        ));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let attestation = serde_json::from_reader(file)?;
+        Ok(Some(attestation))
+    }
+
+    pub fn list_enterprise_provider_attestations(
+        &self,
+    ) -> Result<Vec<EnterpriseProviderAttestationSummary>> {
+        let dir = self.root.join("JRN/enterprise-provider/attestations");
+        let mut attestations = Vec::new();
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            if entry.file_type()?.is_file() {
+                let file = File::open(entry.path())?;
+                let attestation = serde_json::from_reader(file)?;
+                attestations.push(attestation);
+            }
+        }
+        Ok(attestations)
+    }
+
+    pub fn find_valid_enterprise_provider_attestation_summary(
+        &self,
+        provider_id: &str,
+        attestation_hash: Option<&str>,
+    ) -> Result<Option<EnterpriseProviderAttestationSummary>> {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let mut candidate: Option<EnterpriseProviderAttestationSummary> = None;
+        for attestation in self.list_enterprise_provider_attestations()? {
+            if attestation.enterprise_provider_id.0 != provider_id {
+                continue;
+            }
+            if let Some(expected) = attestation_hash {
+                if attestation
+                    .attestation_hash
+                    .as_ref()
+                    .map(|hash| hash.0.as_str())
+                    != Some(expected)
+                {
+                    continue;
+                }
+            }
+            if attestation.is_expired(now) || attestation.is_revoked() {
+                continue;
+            }
+            match &candidate {
+                Some(existing) if existing.created_at >= attestation.created_at => {}
+                _ => candidate = Some(attestation),
+            }
+        }
+        Ok(candidate)
     }
 
     pub fn find_valid_enterprise_recovery_decision(

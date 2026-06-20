@@ -98,6 +98,8 @@ mod tests {
             domain_recovery_decision_id: "DRD-1".to_string(),
             enterprise_authority_policy_id: authority_policy.policy_id.clone(),
             enterprise_quorum_policy_id: quorum_policy.policy_id.clone(),
+            enterprise_provider_id: None,
+            provider_attestation_hash: None,
             source_kind: EnterpriseRecoverySourceKind::ImportedOfflineDecision,
             created_at: 1,
         };

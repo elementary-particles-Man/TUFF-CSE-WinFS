@@ -8,6 +8,12 @@ use tuff_cse_winfs::binding::{self, BindingInputSnapshot};
 use tuff_cse_winfs::binding_policy;
 use tuff_cse_winfs::binding_store::BindingStore;
 use tuff_cse_winfs::enterprise_authority::{self, EnterpriseAuthorityPolicy};
+use tuff_cse_winfs::enterprise_provider::{
+    self, EnterpriseProviderAttestationSummary, EnterpriseProviderPolicy,
+};
+use tuff_cse_winfs::enterprise_provider_enforcement::{
+    EnterpriseProviderEnforcementDecision, EnterpriseProviderEnforcer,
+};
 use tuff_cse_winfs::enterprise_quorum::{self, EnterpriseQuorumPolicy};
 use tuff_cse_winfs::enterprise_recovery::{
     self, EnterpriseRecoveryDecision, EnterpriseRecoveryRequest, EnterpriseRecoverySourceKind,
@@ -215,6 +221,11 @@ enum Commands {
         #[command(subcommand)]
         sub: EnterpriseQuorumCommands,
     },
+    /// Enterprise provider management
+    EnterpriseProvider {
+        #[command(subcommand)]
+        sub: EnterpriseProviderCommands,
+    },
     /// Enterprise recovery management
     EnterpriseRecovery {
         #[command(subcommand)]
@@ -359,6 +370,48 @@ enum EnterpriseQuorumCommands {
     Evaluate {
         #[arg(long)]
         policy: PathBuf,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum EnterpriseProviderCommands {
+    Import {
+        #[arg(long)]
+        policy: PathBuf,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    ImportAttestation {
+        #[arg(long)]
+        attestation: PathBuf,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    Status {
+        #[arg(long = "enterprise-provider")]
+        enterprise_provider: Option<String>,
+        #[arg(long = "enterprise-provider-attestation")]
+        enterprise_provider_attestation: Option<String>,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    Evaluate {
+        #[arg(long = "enterprise-provider")]
+        enterprise_provider: String,
+        #[arg(long)]
+        operation: String,
+        #[arg(long)]
+        volume: String,
         #[arg(long, hide = true)]
         store_root: Option<PathBuf>,
         #[arg(long)]
@@ -1131,6 +1184,184 @@ fn handle_enterprise_quorum(sub: EnterpriseQuorumCommands) -> Result<()> {
     Ok(())
 }
 
+fn handle_enterprise_provider(sub: EnterpriseProviderCommands) -> Result<()> {
+    match sub {
+        EnterpriseProviderCommands::Import {
+            policy,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            let file = std::fs::File::open(policy)?;
+            let policy: EnterpriseProviderPolicy = serde_json::from_reader(file)?;
+            let policy = enterprise_provider::normalize_enterprise_provider_policy(policy);
+            store.save_enterprise_provider_policy(&policy)?;
+            if json {
+                println!("{}", serde_json::to_string(&policy)?);
+            } else {
+                println!(
+                    "Enterprise provider policy imported: {}",
+                    policy.policy_id.0
+                );
+            }
+        }
+        EnterpriseProviderCommands::ImportAttestation {
+            attestation,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            let file = std::fs::File::open(attestation)?;
+            let attestation: EnterpriseProviderAttestationSummary = serde_json::from_reader(file)?;
+            let attestation =
+                enterprise_provider::normalize_enterprise_provider_attestation(attestation);
+            store.save_enterprise_provider_attestation(&attestation)?;
+            if json {
+                println!("{}", serde_json::to_string(&attestation)?);
+            } else {
+                println!(
+                    "Enterprise provider attestation imported: {}",
+                    attestation.attestation_id.0
+                );
+            }
+        }
+        EnterpriseProviderCommands::Status {
+            enterprise_provider,
+            enterprise_provider_attestation,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            if let Some(ref provider_id) = enterprise_provider {
+                if let Some(policy) = store.load_enterprise_provider_policy(&provider_id)? {
+                    if json {
+                        println!("{}", serde_json::to_string(&policy)?);
+                    } else {
+                        println!("Enterprise provider policy: {}", policy.policy_id.0);
+                        println!(
+                            "Hash: {}",
+                            policy
+                                .policy_hash
+                                .as_ref()
+                                .map(|hash| hash.0.as_str())
+                                .unwrap_or("")
+                        );
+                    }
+                }
+            }
+            if let Some(ref attestation_id) = enterprise_provider_attestation {
+                if let Some(attestation) =
+                    store.load_enterprise_provider_attestation(&attestation_id)?
+                {
+                    if json {
+                        println!("{}", serde_json::to_string(&attestation)?);
+                    } else {
+                        println!(
+                            "Enterprise provider attestation: {}",
+                            attestation.attestation_id.0
+                        );
+                        println!(
+                            "Hash: {}",
+                            attestation
+                                .attestation_hash
+                                .as_ref()
+                                .map(|hash| hash.0.as_str())
+                                .unwrap_or("")
+                        );
+                    }
+                }
+            }
+            if enterprise_provider.is_none() && enterprise_provider_attestation.is_none() {
+                let policies = store.list_enterprise_provider_policies()?;
+                if json {
+                    println!("{}", serde_json::to_string(&policies)?);
+                } else {
+                    println!("Enterprise provider policies: {}", policies.len());
+                }
+            }
+        }
+        EnterpriseProviderCommands::Evaluate {
+            enterprise_provider,
+            operation,
+            volume,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            let provider_policy = store
+                .load_enterprise_provider_policy(&enterprise_provider)?
+                .ok_or_else(|| anyhow!("enterprise provider policy not found"))?;
+            let attestation = store
+                .find_valid_enterprise_provider_attestation_summary(&enterprise_provider, None)?
+                .ok_or_else(|| anyhow!("enterprise provider attestation not found"))?;
+            let authority_policy = store.load_enterprise_authority_policy(
+                &provider_policy.enterprise_authority_policy_id.0,
+            )?;
+            let request = EnterpriseRecoveryRequest {
+                request_id: enterprise_recovery::EnterpriseRecoveryRequestId(format!(
+                    "ERQ-EP-{}",
+                    BindingStore::volume_hash(&volume)
+                )),
+                operation_kind: parse_operation_kind(&operation)?,
+                volume_hash: BindingStore::volume_hash(&volume),
+                domain_recovery_request_id: format!(
+                    "DR-REQ-{}",
+                    BindingStore::volume_hash(&volume)
+                ),
+                domain_recovery_package_id: format!(
+                    "DR-PKG-{}",
+                    BindingStore::volume_hash(&volume)
+                ),
+                domain_recovery_decision_id: format!(
+                    "DR-DEC-{}",
+                    BindingStore::volume_hash(&volume)
+                ),
+                enterprise_authority_policy_id: provider_policy
+                    .enterprise_authority_policy_id
+                    .clone(),
+                enterprise_quorum_policy_id: enterprise_quorum::EnterpriseQuorumPolicyId(format!(
+                    "EQ-EP-{}",
+                    provider_policy.policy_id.0
+                )),
+                enterprise_provider_id: Some(provider_policy.policy_id.0.clone()),
+                provider_attestation_hash: attestation
+                    .attestation_hash
+                    .as_ref()
+                    .map(|hash| hash.0.clone()),
+                source_kind:
+                    enterprise_recovery::EnterpriseRecoverySourceKind::ImportedOfflineDecision,
+                created_at: attestation.created_at,
+            };
+            let enforcer = EnterpriseRecoveryEnforcer::new(&store);
+            let decision = enforcer.check_enterprise_provider(
+                &request,
+                None,
+                Some(&provider_policy),
+                Some(&attestation),
+                authority_policy.as_ref(),
+            )?;
+            let required_capability =
+                enterprise_provider::required_provider_capability_for_operation(
+                    parse_operation_kind(&operation)?,
+                );
+            let output = serde_json::json!({
+                "provider_id": provider_policy.policy_id.0,
+                "attestation_id": attestation.attestation_id.0,
+                "required_capability": required_capability,
+                "decision": decision,
+                "operation": operation,
+                "volume": volume,
+            });
+            if json {
+                println!("{}", serde_json::to_string(&output)?);
+            } else {
+                println!("Enterprise provider evaluation: {:?}", decision);
+            }
+        }
+    }
+    Ok(())
+}
+
 fn parse_operation_kind(name: &str) -> Result<OperationKind> {
     match name.to_ascii_lowercase().as_str() {
         "recover" => Ok(OperationKind::Recover),
@@ -1176,6 +1407,18 @@ fn build_enterprise_recovery_request(
             .and_then(|mut policies| policies.pop().map(|p| p.policy_id.0))
             .unwrap_or_else(|| default_enterprise_policy_id("EQ", &volume))
     });
+    let provider_policy_id = store
+        .list_enterprise_provider_policies()
+        .ok()
+        .and_then(|policies| policies.into_iter().max_by_key(|policy| policy.created_at))
+        .map(|policy| policy.policy_id.0);
+    let provider_attestation_hash = provider_policy_id.as_ref().and_then(|provider_id| {
+        store
+            .find_valid_enterprise_provider_attestation_summary(provider_id, None)
+            .ok()
+            .flatten()
+            .and_then(|attestation| attestation.attestation_hash.map(|hash| hash.0))
+    });
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -1197,6 +1440,8 @@ fn build_enterprise_recovery_request(
             authority_policy_id,
         ),
         enterprise_quorum_policy_id: enterprise_quorum::EnterpriseQuorumPolicyId(quorum_policy_id),
+        enterprise_provider_id: provider_policy_id,
+        provider_attestation_hash,
         source_kind: EnterpriseRecoverySourceKind::ImportedOfflineDecision,
         created_at: now,
     })
@@ -1241,11 +1486,8 @@ fn handle_enterprise_recovery(sub: EnterpriseRecoveryCommands) -> Result<()> {
             let store = open_store(store_root)?;
             let file = std::fs::File::open(decision)?;
             let mut decision: EnterpriseRecoveryDecision = serde_json::from_reader(file)?;
-            let computed =
+            decision.decision_hash =
                 enterprise_recovery::compute_enterprise_recovery_decision_hash(&decision);
-            if decision.decision_hash.0.is_empty() {
-                decision.decision_hash = computed;
-            }
             store.save_enterprise_recovery_decision(&decision)?;
             if json {
                 println!("{}", serde_json::to_string(&decision)?);
@@ -1286,7 +1528,7 @@ fn handle_enterprise_recovery(sub: EnterpriseRecoveryCommands) -> Result<()> {
                 .take(quorum_policy.threshold.0 as usize)
                 .cloned()
                 .collect::<Vec<_>>();
-            let decision = enterprise_recovery::build_enterprise_recovery_decision(
+            let mut decision = enterprise_recovery::build_enterprise_recovery_decision(
                 enterprise_recovery::EnterpriseRecoveryDecisionId(format!(
                     "ERD-{}",
                     request.request_id.0
@@ -1304,6 +1546,10 @@ fn handle_enterprise_recovery(sub: EnterpriseRecoveryCommands) -> Result<()> {
                 EnterpriseRecoveryStatus::Approved,
                 EnterpriseRecoverySourceKind::DevGeneratedDecision,
             );
+            decision.enterprise_provider_id = request.enterprise_provider_id.clone();
+            decision.provider_attestation_hash = request.provider_attestation_hash.clone();
+            decision.decision_hash =
+                enterprise_recovery::compute_enterprise_recovery_decision_hash(&decision);
             store.save_enterprise_recovery_decision(&decision)?;
             if json {
                 println!("{}", serde_json::to_string(&decision)?);
@@ -1332,7 +1578,7 @@ fn handle_enterprise_recovery(sub: EnterpriseRecoveryCommands) -> Result<()> {
             let request = store
                 .load_enterprise_recovery_request(&request_id)?
                 .ok_or_else(|| anyhow!("enterprise recovery request not found"))?;
-            let decision = enterprise_recovery::build_enterprise_recovery_decision(
+            let mut decision = enterprise_recovery::build_enterprise_recovery_decision(
                 enterprise_recovery::EnterpriseRecoveryDecisionId(format!(
                     "ERD-{}",
                     request.request_id.0
@@ -1350,6 +1596,10 @@ fn handle_enterprise_recovery(sub: EnterpriseRecoveryCommands) -> Result<()> {
                 EnterpriseRecoveryStatus::Denied,
                 EnterpriseRecoverySourceKind::DevGeneratedDecision,
             );
+            decision.enterprise_provider_id = request.enterprise_provider_id.clone();
+            decision.provider_attestation_hash = request.provider_attestation_hash.clone();
+            decision.decision_hash =
+                enterprise_recovery::compute_enterprise_recovery_decision_hash(&decision);
             store.save_enterprise_recovery_decision(&decision)?;
             if json {
                 println!("{}", serde_json::to_string(&decision)?);
@@ -1409,6 +1659,8 @@ fn handle_enterprise_recovery(sub: EnterpriseRecoveryCommands) -> Result<()> {
                 domain_recovery_decision_id: decision.domain_recovery_decision_id.clone(),
                 enterprise_authority_policy_id: decision.enterprise_authority_policy_id.clone(),
                 enterprise_quorum_policy_id: decision.enterprise_quorum_policy_id.clone(),
+                enterprise_provider_id: decision.enterprise_provider_id.clone(),
+                provider_attestation_hash: decision.provider_attestation_hash.clone(),
                 source_kind: decision.source_kind,
                 created_at: decision.valid_from,
             };
@@ -1665,6 +1917,7 @@ fn main() -> Result<()> {
         Commands::Approval { sub } => handle_approval(sub)?,
         Commands::EnterpriseAuthority { sub } => handle_enterprise_authority(sub)?,
         Commands::EnterpriseQuorum { sub } => handle_enterprise_quorum(sub)?,
+        Commands::EnterpriseProvider { sub } => handle_enterprise_provider(sub)?,
         Commands::EnterpriseRecovery { sub } => handle_enterprise_recovery(sub)?,
         Commands::AuditSigning { sub } => match &sub {
             AuditSigningCommands::Init { volume, store_root } => {

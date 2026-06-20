@@ -1,0 +1,13 @@
+{
+  "attestation_id": "EAT-001",
+  "enterprise_provider_id": "EP-001",
+  "enterprise_authority_policy_id": "EA-001",
+  "provider_kind": "ImportedOfflineProvider",
+  "capabilities": [
+    "RecoveryApprovalOnly"
+  ],
+  "health": "OfflineImported",
+  "valid_from": 1,
+  "valid_until": 9999999999,
+  "created_at": 1
+}

@@ -7,6 +7,12 @@ use crate::binding::{self, BindingInputSnapshot};
 use crate::binding_policy;
 use crate::binding_store::BindingStore;
 use crate::enterprise_authority;
+use crate::enterprise_provider::{
+    self, EnterpriseProviderAttestationSummary, EnterpriseProviderPolicy,
+};
+use crate::enterprise_provider_enforcement::{
+    EnterpriseProviderEnforcementDecision, EnterpriseProviderRejectionReason,
+};
 use crate::enterprise_quorum;
 use crate::enterprise_recovery;
 use crate::enterprise_recovery::{
@@ -298,9 +304,16 @@ pub fn execute_managed_operation(
         enterprise_quorum_policy_id: None,
         enterprise_recovery_request_id: None,
         enterprise_recovery_decision_id: None,
+        enterprise_provider_policy_id: None,
+        enterprise_provider_attestation_id: None,
+        enterprise_provider_kind: None,
+        enterprise_provider_health: None,
+        enterprise_provider_attestation_hash: None,
         enterprise_recovery_status: None,
         enterprise_recovery_enforcement_status: None,
         enterprise_recovery_rejection_reason: None,
+        enterprise_provider_enforcement_status: None,
+        enterprise_provider_rejection_reason: None,
         approval_status: enf_result.as_ref().map(|_| "Approved".to_string()),
         recovery_reason: None,
         reason: result.reason.clone(),
@@ -482,9 +495,16 @@ pub fn execute_export_operation(
         enterprise_quorum_policy_id: None,
         enterprise_recovery_request_id: None,
         enterprise_recovery_decision_id: None,
+        enterprise_provider_policy_id: None,
+        enterprise_provider_attestation_id: None,
+        enterprise_provider_kind: None,
+        enterprise_provider_health: None,
+        enterprise_provider_attestation_hash: None,
         enterprise_recovery_status: None,
         enterprise_recovery_enforcement_status: None,
         enterprise_recovery_rejection_reason: None,
+        enterprise_provider_enforcement_status: None,
+        enterprise_provider_rejection_reason: None,
         approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed {
             Some("Approved".to_string())
         } else {
@@ -588,6 +608,8 @@ pub fn execute_recover_operation(
                 .enterprise_authority_policy_id
                 .clone(),
             enterprise_quorum_policy_id: enterprise_decision.enterprise_quorum_policy_id.clone(),
+            enterprise_provider_id: enterprise_decision.enterprise_provider_id.clone(),
+            provider_attestation_hash: enterprise_decision.provider_attestation_hash.clone(),
             source_kind: enterprise_decision.source_kind,
             created_at: request.timestamp,
         };
@@ -654,6 +676,58 @@ pub fn execute_recover_operation(
         return Ok(res);
     }
 
+    let mut enterprise_provider_policy: Option<EnterpriseProviderPolicy> = None;
+    let mut enterprise_provider_attestation: Option<EnterpriseProviderAttestationSummary> = None;
+    let mut enterprise_provider_enforcement_status: Option<EnterpriseProviderEnforcementDecision> =
+        Some(EnterpriseProviderEnforcementDecision::NotRequired);
+    let mut enterprise_provider_rejection_reason: Option<EnterpriseProviderRejectionReason> = None;
+
+    if let Some((enterprise_request, enterprise_decision)) = enterprise_request.as_ref() {
+        if let Some(provider_id) = enterprise_request.enterprise_provider_id.as_ref() {
+            let provider_policy = store
+                .load_enterprise_provider_policy(provider_id)?
+                .ok_or_else(|| anyhow::anyhow!("enterprise provider policy not found"))?;
+            let attestation = store.find_valid_enterprise_provider_attestation_summary(
+                provider_id,
+                enterprise_request.provider_attestation_hash.as_deref(),
+            )?;
+            let authority_policy = store
+                .load_enterprise_authority_policy(
+                    &enterprise_request.enterprise_authority_policy_id.0,
+                )?
+                .ok_or_else(|| anyhow::anyhow!("enterprise authority policy not found"))?;
+            let provider_enforcer = EnterpriseRecoveryEnforcer::new(store);
+            let provider_decision = provider_enforcer.check_enterprise_provider(
+                enterprise_request,
+                Some(enterprise_decision),
+                Some(&provider_policy),
+                attestation.as_ref(),
+                Some(&authority_policy),
+            )?;
+            enterprise_provider_enforcement_status = Some(provider_decision);
+            enterprise_provider_policy = Some(provider_policy);
+            enterprise_provider_attestation = attestation;
+            if provider_decision == EnterpriseProviderEnforcementDecision::Rejected {
+                return Ok(build_result(
+                    &request,
+                    OperationStatus::Rejected,
+                    state.current,
+                    state.current,
+                    "Enterprise provider gate rejected".to_string(),
+                ));
+            }
+            if provider_decision == EnterpriseProviderEnforcementDecision::ReservedLiveProvider {
+                return Ok(build_result(
+                    &request,
+                    OperationStatus::Reserved,
+                    state.current,
+                    state.current,
+                    "Enterprise provider reserved live provider execution".to_string(),
+                ));
+            }
+        }
+    }
+
     // Prepare journal record
     let record_template = crate::operation_journal::OperationJournalRecord {
         seq: 0,
@@ -681,6 +755,26 @@ pub fn execute_recover_operation(
             .as_ref()
             .map(|(request, _)| request.request_id.0.clone()),
         enterprise_recovery_decision_id: request.enterprise_recovery_decision_id.clone(),
+        enterprise_provider_policy_id: enterprise_provider_policy
+            .as_ref()
+            .map(|policy| policy.policy_id.0.clone()),
+        enterprise_provider_attestation_id: enterprise_provider_attestation
+            .as_ref()
+            .map(|attestation| attestation.attestation_id.0.clone()),
+        enterprise_provider_kind: enterprise_provider_policy
+            .as_ref()
+            .map(|policy| policy.provider_kind),
+        enterprise_provider_health: enterprise_provider_attestation
+            .as_ref()
+            .map(|attestation| attestation.health),
+        enterprise_provider_attestation_hash: enterprise_provider_attestation.as_ref().and_then(
+            |attestation| {
+                attestation
+                    .attestation_hash
+                    .as_ref()
+                    .map(|hash| hash.0.clone())
+            },
+        ),
         enterprise_recovery_status: enterprise_request
             .as_ref()
             .map(|(_, decision)| decision.status),
@@ -688,6 +782,8 @@ pub fn execute_recover_operation(
             .as_ref()
             .map(|_| EnterpriseRecoveryEnforcementDecision::Allowed),
         enterprise_recovery_rejection_reason: None,
+        enterprise_provider_enforcement_status: enterprise_provider_enforcement_status,
+        enterprise_provider_rejection_reason: enterprise_provider_rejection_reason,
         approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed {
             Some("Approved".to_string())
         } else {
@@ -817,9 +913,16 @@ pub fn execute_rebind_operation(
         enterprise_quorum_policy_id: None,
         enterprise_recovery_request_id: None,
         enterprise_recovery_decision_id: None,
+        enterprise_provider_policy_id: None,
+        enterprise_provider_attestation_id: None,
+        enterprise_provider_kind: None,
+        enterprise_provider_health: None,
+        enterprise_provider_attestation_hash: None,
         enterprise_recovery_status: None,
         enterprise_recovery_enforcement_status: None,
         enterprise_recovery_rejection_reason: None,
+        enterprise_provider_enforcement_status: None,
+        enterprise_provider_rejection_reason: None,
         approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed {
             Some("Approved".to_string())
         } else {
@@ -942,9 +1045,16 @@ pub fn execute_manual_flow_operation(
         enterprise_quorum_policy_id: None,
         enterprise_recovery_request_id: None,
         enterprise_recovery_decision_id: None,
+        enterprise_provider_policy_id: None,
+        enterprise_provider_attestation_id: None,
+        enterprise_provider_kind: None,
+        enterprise_provider_health: None,
+        enterprise_provider_attestation_hash: None,
         enterprise_recovery_status: None,
         enterprise_recovery_enforcement_status: None,
         enterprise_recovery_rejection_reason: None,
+        enterprise_provider_enforcement_status: None,
+        enterprise_provider_rejection_reason: None,
         approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed {
             Some("Approved".to_string())
         } else {

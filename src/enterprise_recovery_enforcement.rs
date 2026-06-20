@@ -1,5 +1,9 @@
 use crate::binding_store::BindingStore;
 use crate::enterprise_authority::EnterpriseAuthorityPolicy;
+use crate::enterprise_provider::{EnterpriseProviderAttestationSummary, EnterpriseProviderPolicy};
+use crate::enterprise_provider_enforcement::{
+    EnterpriseProviderEnforcementDecision, EnterpriseProviderEnforcer,
+};
 use crate::enterprise_quorum::{
     evaluate_quorum_decision, EnterpriseQuorumEvaluation, EnterpriseQuorumPolicy,
 };
@@ -124,5 +128,22 @@ impl<'a> EnterpriseRecoveryEnforcer<'a> {
         decision_id: &str,
     ) -> Result<()> {
         self.store.mark_enterprise_recovery_consumed(decision_id)
+    }
+
+    pub fn check_enterprise_provider(
+        &self,
+        request: &crate::enterprise_recovery::EnterpriseRecoveryRequest,
+        decision: Option<&EnterpriseRecoveryDecision>,
+        provider_policy: Option<&EnterpriseProviderPolicy>,
+        attestation: Option<&EnterpriseProviderAttestationSummary>,
+        authority_policy: Option<&EnterpriseAuthorityPolicy>,
+    ) -> Result<EnterpriseProviderEnforcementDecision> {
+        EnterpriseProviderEnforcer::new(self.store).check_enterprise_provider(
+            request,
+            decision,
+            provider_policy,
+            attestation,
+            authority_policy,
+        )
     }
 }

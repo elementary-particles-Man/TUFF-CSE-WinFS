@@ -1,5 +1,9 @@
 use crate::audit_chain::{canonicalize_journal_payload, compute_chain_hash, compute_record_hash};
 use crate::audit_signing::AuditSigner;
+use crate::enterprise_provider::EnterpriseProviderHealth;
+use crate::enterprise_provider_enforcement::{
+    EnterpriseProviderEnforcementDecision, EnterpriseProviderRejectionReason,
+};
 use crate::enterprise_recovery::EnterpriseRecoveryStatus;
 use crate::enterprise_recovery_enforcement::{
     EnterpriseRecoveryEnforcementDecision, EnterpriseRecoveryRejectionReason,
@@ -42,9 +46,16 @@ pub struct OperationJournalRecord {
     pub enterprise_quorum_policy_id: Option<String>,
     pub enterprise_recovery_request_id: Option<String>,
     pub enterprise_recovery_decision_id: Option<String>,
+    pub enterprise_provider_policy_id: Option<String>,
+    pub enterprise_provider_attestation_id: Option<String>,
+    pub enterprise_provider_kind: Option<crate::enterprise_provider::EnterpriseProviderKind>,
+    pub enterprise_provider_health: Option<EnterpriseProviderHealth>,
+    pub enterprise_provider_attestation_hash: Option<String>,
     pub enterprise_recovery_status: Option<EnterpriseRecoveryStatus>,
     pub enterprise_recovery_enforcement_status: Option<EnterpriseRecoveryEnforcementDecision>,
     pub enterprise_recovery_rejection_reason: Option<EnterpriseRecoveryRejectionReason>,
+    pub enterprise_provider_enforcement_status: Option<EnterpriseProviderEnforcementDecision>,
+    pub enterprise_provider_rejection_reason: Option<EnterpriseProviderRejectionReason>,
     pub approval_status: Option<String>,
     pub recovery_reason: Option<String>,
     pub reason: String,

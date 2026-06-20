@@ -128,7 +128,7 @@ cargo run --bin tuff-cse-winfsctl -- export --volume D: --complete-plan <EXPORT_
 cargo run --bin tuff-cse-winfsctl -- recover --volume D: --cancel-plan <RECO_PLAN_ID> --confirm CONFIRM-CANCEL-001 --reason USER_CANCELLED
 ```
 
-## Current Phase: P6A (Enterprise Recovery Authority Boundary)
+## P6A (Enterprise Recovery Authority Boundary)
 
 P6A defines the first enterprise recovery boundary. It introduces offline authority, quorum, and recovery-decision metadata for imported or dev-generated enterprise recovery flows. It does **not** connect to live KMS/HSM, PKCS#11, cloud KMS SDKs, TPM APIs, driver I/O, or key-restoration logic.
 
@@ -147,6 +147,24 @@ TUFF_CSE_WINFS_ALLOW_DEV_ENTERPRISE_RECOVERY=1 cargo run --bin tuff-cse-winfsctl
 ```
 
 `TUFF_CSE_WINFS_ALLOW_DEV_ENTERPRISE_RECOVERY=1` is required for the dev approval and deny commands.
+
+## Current Phase: P6B (Enterprise Provider Adapter Boundary)
+
+P6B adds an offline enterprise provider adapter boundary on top of P6A. It models provider policy, attestation summaries, and provider-gated recovery evaluation without connecting to live KMS/HSM, cloud KMS SDKs, PKCS#11, TPM APIs, or driver I/O.
+
+### P6B Highlights
+- `EnterpriseProviderPolicy` and `EnterpriseProviderAttestationSummary` are imported as offline metadata only.
+- `enterprise-provider` CLI subcommands import, inspect, and evaluate stored provider records.
+- Enterprise provider evaluation does not bypass P6A enterprise recovery, P5C domain recovery, P5B domain approval, P4B local approval, or P3C manual confirmation.
+- Provider credentials, API keys, client secrets, tokens, private keys, KMS secrets, HSM secrets, and raw TPM material are not persisted, displayed, or journaled.
+
+### Provider CLI Examples
+```powershell
+cargo run --bin tuff-cse-winfsctl -- enterprise-provider import --policy examples/enterprise-provider-policy.example.json
+cargo run --bin tuff-cse-winfsctl -- enterprise-provider import-attestation --attestation examples/enterprise-provider-attestation.example.json
+cargo run --bin tuff-cse-winfsctl -- enterprise-provider status --enterprise-provider EP-001
+cargo run --bin tuff-cse-winfsctl -- enterprise-provider evaluate --enterprise-provider EP-001 --operation recover --volume D:
+```
 
 ## Current Phase: P4A (Local Policy / Local Admin Approval Boundary)
 

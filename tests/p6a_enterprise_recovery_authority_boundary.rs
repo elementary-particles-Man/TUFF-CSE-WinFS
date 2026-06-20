@@ -80,6 +80,8 @@ mod tests {
             domain_recovery_decision_id: "DRD-001".to_string(),
             enterprise_authority_policy_id: EnterpriseAuthorityPolicyId("EA-001".to_string()),
             enterprise_quorum_policy_id: EnterpriseQuorumPolicyId("EQ-001".to_string()),
+            enterprise_provider_id: Some("EP-001".to_string()),
+            provider_attestation_hash: Some("EAT-001".to_string()),
             source_kind: EnterpriseRecoverySourceKind::ImportedOfflineDecision,
             created_at: 1,
         }
@@ -619,11 +621,24 @@ mod tests {
             enterprise_quorum_policy_id: Some("EQ-001".to_string()),
             enterprise_recovery_request_id: Some("ERQ-001".to_string()),
             enterprise_recovery_decision_id: Some("ERD-001".to_string()),
+            enterprise_provider_policy_id: Some("EP-001".to_string()),
+            enterprise_provider_attestation_id: Some("EAT-001".to_string()),
+            enterprise_provider_kind: Some(
+                tuff_cse_winfs::enterprise_provider::EnterpriseProviderKind::ImportedOfflineProvider,
+            ),
+            enterprise_provider_health: Some(
+                tuff_cse_winfs::enterprise_provider::EnterpriseProviderHealth::OfflineImported,
+            ),
+            enterprise_provider_attestation_hash: Some("EAT-001".to_string()),
             enterprise_recovery_status: Some(EnterpriseRecoveryStatus::Approved),
             enterprise_recovery_enforcement_status: Some(
                 EnterpriseRecoveryEnforcementDecision::Allowed,
             ),
             enterprise_recovery_rejection_reason: None,
+            enterprise_provider_enforcement_status: Some(
+                tuff_cse_winfs::enterprise_provider_enforcement::EnterpriseProviderEnforcementDecision::Allowed,
+            ),
+            enterprise_provider_rejection_reason: None,
             approval_status: None,
             recovery_reason: None,
             reason: "test".to_string(),
@@ -684,11 +699,24 @@ mod tests {
             enterprise_quorum_policy_id: Some("EQ-001".to_string()),
             enterprise_recovery_request_id: Some("ERQ-001".to_string()),
             enterprise_recovery_decision_id: Some("ERD-001".to_string()),
+            enterprise_provider_policy_id: Some("EP-001".to_string()),
+            enterprise_provider_attestation_id: Some("EAT-001".to_string()),
+            enterprise_provider_kind: Some(
+                tuff_cse_winfs::enterprise_provider::EnterpriseProviderKind::ImportedOfflineProvider,
+            ),
+            enterprise_provider_health: Some(
+                tuff_cse_winfs::enterprise_provider::EnterpriseProviderHealth::OfflineImported,
+            ),
+            enterprise_provider_attestation_hash: Some("EAT-001".to_string()),
             enterprise_recovery_status: Some(EnterpriseRecoveryStatus::Approved),
             enterprise_recovery_enforcement_status: Some(
                 EnterpriseRecoveryEnforcementDecision::Allowed,
             ),
             enterprise_recovery_rejection_reason: None,
+            enterprise_provider_enforcement_status: Some(
+                tuff_cse_winfs::enterprise_provider_enforcement::EnterpriseProviderEnforcementDecision::Allowed,
+            ),
+            enterprise_provider_rejection_reason: None,
             approval_status: None,
             recovery_reason: None,
             reason: "test".to_string(),
@@ -750,11 +778,24 @@ mod tests {
             enterprise_quorum_policy_id: Some("EQ-001".to_string()),
             enterprise_recovery_request_id: Some("ERQ-001".to_string()),
             enterprise_recovery_decision_id: Some("ERD-001".to_string()),
+            enterprise_provider_policy_id: Some("EP-001".to_string()),
+            enterprise_provider_attestation_id: Some("EAT-001".to_string()),
+            enterprise_provider_kind: Some(
+                tuff_cse_winfs::enterprise_provider::EnterpriseProviderKind::ImportedOfflineProvider,
+            ),
+            enterprise_provider_health: Some(
+                tuff_cse_winfs::enterprise_provider::EnterpriseProviderHealth::OfflineImported,
+            ),
+            enterprise_provider_attestation_hash: Some("EAT-001".to_string()),
             enterprise_recovery_status: Some(EnterpriseRecoveryStatus::Approved),
             enterprise_recovery_enforcement_status: Some(
                 EnterpriseRecoveryEnforcementDecision::Allowed,
             ),
             enterprise_recovery_rejection_reason: None,
+            enterprise_provider_enforcement_status: Some(
+                tuff_cse_winfs::enterprise_provider_enforcement::EnterpriseProviderEnforcementDecision::Allowed,
+            ),
+            enterprise_provider_rejection_reason: None,
             approval_status: None,
             recovery_reason: None,
             reason: "test".to_string(),
@@ -853,11 +894,24 @@ mod tests {
             enterprise_quorum_policy_id: Some("EQ-001".to_string()),
             enterprise_recovery_request_id: Some("ERQ-001".to_string()),
             enterprise_recovery_decision_id: Some("ERD-001".to_string()),
+            enterprise_provider_policy_id: Some("EP-001".to_string()),
+            enterprise_provider_attestation_id: Some("EAT-001".to_string()),
+            enterprise_provider_kind: Some(
+                tuff_cse_winfs::enterprise_provider::EnterpriseProviderKind::ImportedOfflineProvider,
+            ),
+            enterprise_provider_health: Some(
+                tuff_cse_winfs::enterprise_provider::EnterpriseProviderHealth::OfflineImported,
+            ),
+            enterprise_provider_attestation_hash: Some("EAT-001".to_string()),
             enterprise_recovery_status: Some(EnterpriseRecoveryStatus::Approved),
             enterprise_recovery_enforcement_status: Some(
                 EnterpriseRecoveryEnforcementDecision::Allowed,
             ),
             enterprise_recovery_rejection_reason: None,
+            enterprise_provider_enforcement_status: Some(
+                tuff_cse_winfs::enterprise_provider_enforcement::EnterpriseProviderEnforcementDecision::Allowed,
+            ),
+            enterprise_provider_rejection_reason: None,
             approval_status: None,
             recovery_reason: None,
             reason: "test".to_string(),

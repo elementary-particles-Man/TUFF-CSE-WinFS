@@ -43,6 +43,10 @@ pub struct EnterpriseRecoveryRequest {
     pub domain_recovery_decision_id: String,
     pub enterprise_authority_policy_id: EnterpriseAuthorityPolicyId,
     pub enterprise_quorum_policy_id: EnterpriseQuorumPolicyId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enterprise_provider_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_attestation_hash: Option<String>,
     pub source_kind: EnterpriseRecoverySourceKind,
     pub created_at: u64,
 }
@@ -57,6 +61,10 @@ pub struct EnterpriseRecoveryDecision {
     pub domain_recovery_decision_id: String,
     pub enterprise_authority_policy_id: EnterpriseAuthorityPolicyId,
     pub enterprise_quorum_policy_id: EnterpriseQuorumPolicyId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enterprise_provider_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_attestation_hash: Option<String>,
     pub approver_fingerprints: Vec<EnterpriseQuorumMemberFingerprint>,
     pub decision_hash: EnterpriseRecoveryDecisionHash,
     pub valid_from: u64,
@@ -76,6 +84,8 @@ struct EnterpriseRecoveryDecisionCanonical<'a> {
     domain_recovery_decision_id: &'a str,
     enterprise_authority_policy_id: &'a EnterpriseAuthorityPolicyId,
     enterprise_quorum_policy_id: &'a EnterpriseQuorumPolicyId,
+    enterprise_provider_id: Option<&'a String>,
+    provider_attestation_hash: Option<&'a String>,
     approver_fingerprints: &'a [EnterpriseQuorumMemberFingerprint],
     valid_from: u64,
     valid_until: u64,
@@ -94,6 +104,8 @@ pub fn canonicalize_enterprise_recovery_decision(decision: &EnterpriseRecoveryDe
         domain_recovery_decision_id: &decision.domain_recovery_decision_id,
         enterprise_authority_policy_id: &decision.enterprise_authority_policy_id,
         enterprise_quorum_policy_id: &decision.enterprise_quorum_policy_id,
+        enterprise_provider_id: decision.enterprise_provider_id.as_ref(),
+        provider_attestation_hash: decision.provider_attestation_hash.as_ref(),
         approver_fingerprints: &decision.approver_fingerprints,
         valid_from: decision.valid_from,
         valid_until: decision.valid_until,
@@ -161,6 +173,8 @@ pub fn build_enterprise_recovery_decision(
         domain_recovery_decision_id,
         enterprise_authority_policy_id,
         enterprise_quorum_policy_id,
+        enterprise_provider_id: None,
+        provider_attestation_hash: None,
         approver_fingerprints,
         decision_hash: EnterpriseRecoveryDecisionHash(String::new()),
         valid_from,

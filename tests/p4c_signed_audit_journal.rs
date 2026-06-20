@@ -55,6 +55,15 @@ mod tests {
             enterprise_quorum_policy_id: Some("EQ-001".to_string()),
             enterprise_recovery_request_id: Some("ERQ-001".to_string()),
             enterprise_recovery_decision_id: Some("ERD-001".to_string()),
+            enterprise_provider_policy_id: Some("EP-001".to_string()),
+            enterprise_provider_attestation_id: Some("EAT-001".to_string()),
+            enterprise_provider_kind: Some(
+                tuff_cse_winfs::enterprise_provider::EnterpriseProviderKind::ImportedOfflineProvider,
+            ),
+            enterprise_provider_health: Some(
+                tuff_cse_winfs::enterprise_provider::EnterpriseProviderHealth::OfflineImported,
+            ),
+            enterprise_provider_attestation_hash: Some("APH-001".to_string()),
             enterprise_recovery_status: Some(
                 tuff_cse_winfs::enterprise_recovery::EnterpriseRecoveryStatus::Approved,
             ),
@@ -62,6 +71,10 @@ mod tests {
                 tuff_cse_winfs::enterprise_recovery_enforcement::EnterpriseRecoveryEnforcementDecision::Allowed,
             ),
             enterprise_recovery_rejection_reason: None,
+            enterprise_provider_enforcement_status: Some(
+                tuff_cse_winfs::enterprise_provider_enforcement::EnterpriseProviderEnforcementDecision::Allowed,
+            ),
+            enterprise_provider_rejection_reason: None,
             approval_status: None,
             recovery_reason: None,
             reason: "test".to_string(),
@@ -125,6 +138,15 @@ mod tests {
             enterprise_quorum_policy_id: Some("EQ-001".to_string()),
             enterprise_recovery_request_id: Some("ERQ-001".to_string()),
             enterprise_recovery_decision_id: Some("ERD-001".to_string()),
+            enterprise_provider_policy_id: Some("EP-001".to_string()),
+            enterprise_provider_attestation_id: Some("EAT-001".to_string()),
+            enterprise_provider_kind: Some(
+                tuff_cse_winfs::enterprise_provider::EnterpriseProviderKind::ImportedOfflineProvider,
+            ),
+            enterprise_provider_health: Some(
+                tuff_cse_winfs::enterprise_provider::EnterpriseProviderHealth::OfflineImported,
+            ),
+            enterprise_provider_attestation_hash: Some("APH-001".to_string()),
             enterprise_recovery_status: Some(
                 tuff_cse_winfs::enterprise_recovery::EnterpriseRecoveryStatus::Approved,
             ),
@@ -132,6 +154,10 @@ mod tests {
                 tuff_cse_winfs::enterprise_recovery_enforcement::EnterpriseRecoveryEnforcementDecision::Allowed,
             ),
             enterprise_recovery_rejection_reason: None,
+            enterprise_provider_enforcement_status: Some(
+                tuff_cse_winfs::enterprise_provider_enforcement::EnterpriseProviderEnforcementDecision::Allowed,
+            ),
+            enterprise_provider_rejection_reason: None,
             approval_status: None,
             recovery_reason: None,
             reason: "test".to_string(),

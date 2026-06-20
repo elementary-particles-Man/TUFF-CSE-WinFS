@@ -13,6 +13,8 @@ pub mod domain_recovery;
 pub mod domain_recovery_enforcement;
 pub mod driver;
 pub mod enterprise_authority;
+pub mod enterprise_provider;
+pub mod enterprise_provider_enforcement;
 pub mod enterprise_quorum;
 pub mod enterprise_recovery;
 pub mod enterprise_recovery_enforcement;
