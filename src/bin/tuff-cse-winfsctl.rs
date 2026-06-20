@@ -10,9 +10,17 @@ use tuff_cse_winfs::binding_store::BindingStore;
 use tuff_cse_winfs::enterprise_authority::{self, EnterpriseAuthorityPolicy};
 use tuff_cse_winfs::enterprise_provider::{
     self, EnterpriseProviderAttestationSummary, EnterpriseProviderPolicy,
+    EnterpriseProviderPolicyId,
 };
 use tuff_cse_winfs::enterprise_provider_enforcement::{
     EnterpriseProviderEnforcementDecision, EnterpriseProviderEnforcer,
+};
+use tuff_cse_winfs::enterprise_provider_lifecycle::{
+    EnterpriseProviderGeneration, EnterpriseProviderLifecycleEvent,
+    EnterpriseProviderLifecycleEventId, EnterpriseProviderLifecycleEventKind,
+    EnterpriseProviderLifecycleState, EnterpriseProviderRevocationReason,
+    EnterpriseProviderRotationDecision, EnterpriseProviderRotationPlan,
+    EnterpriseProviderRotationPlanId,
 };
 use tuff_cse_winfs::enterprise_quorum::{self, EnterpriseQuorumPolicy};
 use tuff_cse_winfs::enterprise_recovery::{
@@ -417,6 +425,68 @@ enum EnterpriseProviderCommands {
         #[arg(long)]
         json: bool,
     },
+    Lifecycle {
+        #[command(subcommand)]
+        command: EnterpriseProviderLifecycleCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum EnterpriseProviderLifecycleCommands {
+    ImportEvent {
+        #[arg(long)]
+        event: PathBuf,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    Status {
+        #[arg(long = "enterprise-provider")]
+        enterprise_provider: String,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    Revoke {
+        #[arg(long = "enterprise-provider")]
+        enterprise_provider: String,
+        #[arg(long)]
+        reason: String,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    RotationPlan {
+        #[arg(long = "enterprise-provider")]
+        enterprise_provider: String,
+        #[arg(long = "next-generation")]
+        next_generation: u64,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    RotateComplete {
+        #[arg(long = "rotation-plan")]
+        rotation_plan: String,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
+    RenewAttestation {
+        #[arg(long = "enterprise-provider")]
+        enterprise_provider: String,
+        #[arg(long)]
+        attestation: PathBuf,
+        #[arg(long, hide = true)]
+        store_root: Option<PathBuf>,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -539,6 +609,7 @@ fn handle_operation(
         enterprise_authority_policy_id: None,
         enterprise_quorum_policy_id: None,
         enterprise_recovery_decision_id: None,
+        ..Default::default()
     };
 
     let result =
@@ -646,6 +717,7 @@ fn handle_export(
             enterprise_authority_policy_id: None,
             enterprise_quorum_policy_id: None,
             enterprise_recovery_decision_id: None,
+            ..Default::default()
         };
         let result = operations::execute_manual_flow_operation(
             request,
@@ -682,6 +754,7 @@ fn handle_export(
             enterprise_authority_policy_id: None,
             enterprise_quorum_policy_id: None,
             enterprise_recovery_decision_id: None,
+            ..Default::default()
         };
         let result = operations::execute_manual_flow_operation(
             request,
@@ -731,6 +804,7 @@ fn handle_export(
         enterprise_authority_policy_id: None,
         enterprise_quorum_policy_id: None,
         enterprise_recovery_decision_id: None,
+        ..Default::default()
     };
 
     let result = operations::execute_export_operation(
@@ -807,6 +881,7 @@ fn handle_recover(
             enterprise_authority_policy_id: None,
             enterprise_quorum_policy_id: None,
             enterprise_recovery_decision_id: None,
+            ..Default::default()
         };
         let result = operations::execute_manual_flow_operation(
             request,
@@ -850,6 +925,7 @@ fn handle_recover(
         enterprise_authority_policy_id: None,
         enterprise_quorum_policy_id: None,
         enterprise_recovery_decision_id: None,
+        ..Default::default()
     };
 
     let result = operations::execute_recover_operation(
@@ -925,6 +1001,7 @@ fn handle_rebind(
             enterprise_authority_policy_id: None,
             enterprise_quorum_policy_id: None,
             enterprise_recovery_decision_id: None,
+            ..Default::default()
         };
         let result = operations::execute_manual_flow_operation(
             request,
@@ -968,6 +1045,7 @@ fn handle_rebind(
         enterprise_authority_policy_id: None,
         enterprise_quorum_policy_id: None,
         enterprise_recovery_decision_id: None,
+        ..Default::default()
     };
 
     let result = operations::execute_rebind_operation(
@@ -1356,6 +1434,271 @@ fn handle_enterprise_provider(sub: EnterpriseProviderCommands) -> Result<()> {
                 println!("{}", serde_json::to_string(&output)?);
             } else {
                 println!("Enterprise provider evaluation: {:?}", decision);
+            }
+        }
+        EnterpriseProviderCommands::Lifecycle { command } => {
+            handle_enterprise_provider_lifecycle(command)?;
+        }
+    }
+    Ok(())
+}
+
+fn handle_enterprise_provider_lifecycle(sub: EnterpriseProviderLifecycleCommands) -> Result<()> {
+    if std::env::var("TUFF_CSE_WINFS_ALLOW_DEV_PROVIDER_LIFECYCLE").as_deref() != Ok("1") {
+        return Err(anyhow!("Dev provider lifecycle operations require TUFF_CSE_WINFS_ALLOW_DEV_PROVIDER_LIFECYCLE=1 environment variable"));
+    }
+
+    match sub {
+        EnterpriseProviderLifecycleCommands::ImportEvent {
+            event,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            let file = std::fs::File::open(event)?;
+            let mut event_obj: EnterpriseProviderLifecycleEvent = serde_json::from_reader(file)?;
+            event_obj =
+                tuff_cse_winfs::enterprise_provider_lifecycle::normalize_lifecycle_event(event_obj);
+            store.save_enterprise_provider_lifecycle_event(&event_obj)?;
+            if json {
+                println!("{}", serde_json::to_string(&event_obj)?);
+            } else {
+                println!(
+                    "Enterprise provider lifecycle event imported: {}",
+                    event_obj.event_id.0
+                );
+            }
+        }
+        EnterpriseProviderLifecycleCommands::Status {
+            enterprise_provider,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            let state = store.find_latest_provider_lifecycle_state(&enterprise_provider)?;
+            let gen = store.find_active_provider_generation(&enterprise_provider)?;
+            let plan = store.find_latest_rotation_plan(&enterprise_provider)?;
+
+            let status_json = serde_json::json!({
+                "provider_id": enterprise_provider,
+                "state": state,
+                "active_generation": gen.map(|g| g.0),
+                "latest_rotation_plan_id": plan.map(|p| p.plan_id.0),
+            });
+            if json {
+                println!("{}", serde_json::to_string(&status_json)?);
+            } else {
+                println!("Provider: {}", enterprise_provider);
+                println!("Lifecycle State: {:?}", state.unwrap_or(tuff_cse_winfs::enterprise_provider_lifecycle::EnterpriseProviderLifecycleState::Active));
+                println!("Active Generation: {:?}", gen.map(|g| g.0).unwrap_or(1));
+            }
+        }
+        EnterpriseProviderLifecycleCommands::Revoke {
+            enterprise_provider,
+            reason,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            let active_gen = store
+                .find_active_provider_generation(&enterprise_provider)?
+                .unwrap_or(EnterpriseProviderGeneration(1));
+
+            let parsed_reason = match reason.to_ascii_lowercase().as_str() {
+                "compromised-reserved" | "compromisedreserved" => {
+                    EnterpriseProviderRevocationReason::CompromisedReserved
+                }
+                "policy-superseded" | "policysuperseded" => {
+                    EnterpriseProviderRevocationReason::PolicySuperseded
+                }
+                "authority-revoked" | "authorityrevoked" => {
+                    EnterpriseProviderRevocationReason::AuthorityRevoked
+                }
+                "attestation-expired" | "attestationexpired" => {
+                    EnterpriseProviderRevocationReason::AttestationExpired
+                }
+                "administrative-revocation" | "administrativerevocation" => {
+                    EnterpriseProviderRevocationReason::AdministrativeRevocation
+                }
+                "reserved-live-provider-failure" | "reservedliveproviderfailure" => {
+                    EnterpriseProviderRevocationReason::ReservedLiveProviderFailure
+                }
+                _ => return Err(anyhow!("Invalid revocation reason: {}", reason)),
+            };
+
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            let event = EnterpriseProviderLifecycleEvent {
+                event_id: EnterpriseProviderLifecycleEventId(format!("EV-REVOKE-{}", now)),
+                provider_id: EnterpriseProviderPolicyId(enterprise_provider.clone()),
+                generation: active_gen,
+                kind: EnterpriseProviderLifecycleEventKind::ImportedRevocation,
+                state: EnterpriseProviderLifecycleState::Revoked,
+                revocation_reason: Some(parsed_reason),
+                attestation_hash: None,
+                created_at: now,
+                event_hash: None,
+            };
+            let event =
+                tuff_cse_winfs::enterprise_provider_lifecycle::normalize_lifecycle_event(event);
+            store.save_enterprise_provider_lifecycle_event(&event)?;
+
+            if let Some(mut policy) = store.load_enterprise_provider_policy(&enterprise_provider)? {
+                policy.health =
+                    tuff_cse_winfs::enterprise_provider::EnterpriseProviderHealth::Revoked;
+                policy = tuff_cse_winfs::enterprise_provider::normalize_enterprise_provider_policy(
+                    policy,
+                );
+                store.save_enterprise_provider_policy(&policy)?;
+            }
+
+            if json {
+                println!("{}", serde_json::to_string(&event)?);
+            } else {
+                println!("Enterprise provider revoked: {}", enterprise_provider);
+            }
+        }
+        EnterpriseProviderLifecycleCommands::RotationPlan {
+            enterprise_provider,
+            next_generation,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            let active_gen = store
+                .find_active_provider_generation(&enterprise_provider)?
+                .unwrap_or(EnterpriseProviderGeneration(1));
+
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            let plan_id = format!("PLAN-ROT-{}-{}", enterprise_provider, now);
+            let plan = EnterpriseProviderRotationPlan {
+                plan_id: EnterpriseProviderRotationPlanId(plan_id.clone()),
+                provider_id: EnterpriseProviderPolicyId(enterprise_provider.clone()),
+                current_generation: active_gen,
+                next_generation: EnterpriseProviderGeneration(next_generation),
+                created_at: now,
+                plan_hash: None,
+            };
+            let plan = tuff_cse_winfs::enterprise_provider_lifecycle::normalize_rotation_plan(plan);
+            store.save_enterprise_provider_rotation_plan(&plan)?;
+
+            let event = EnterpriseProviderLifecycleEvent {
+                event_id: EnterpriseProviderLifecycleEventId(format!("EV-ROTPLAN-{}", now)),
+                provider_id: EnterpriseProviderPolicyId(enterprise_provider.clone()),
+                generation: active_gen,
+                kind: EnterpriseProviderLifecycleEventKind::ImportedRotationPlan,
+                state: EnterpriseProviderLifecycleState::PendingRotation,
+                revocation_reason: None,
+                attestation_hash: None,
+                created_at: now,
+                event_hash: None,
+            };
+            let event =
+                tuff_cse_winfs::enterprise_provider_lifecycle::normalize_lifecycle_event(event);
+            store.save_enterprise_provider_lifecycle_event(&event)?;
+
+            if json {
+                let output = serde_json::json!({
+                    "plan": plan,
+                    "event": event,
+                });
+                println!("{}", serde_json::to_string(&output)?);
+            } else {
+                println!("Rotation plan created: {}", plan_id);
+            }
+        }
+        EnterpriseProviderLifecycleCommands::RotateComplete {
+            rotation_plan,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            let plan = store
+                .load_enterprise_provider_rotation_plan(&rotation_plan)?
+                .ok_or_else(|| anyhow!("Rotation plan not found: {}", rotation_plan))?;
+
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            let event = EnterpriseProviderLifecycleEvent {
+                event_id: EnterpriseProviderLifecycleEventId(format!("EV-ROTCOMP-{}", now)),
+                provider_id: plan.provider_id.clone(),
+                generation: plan.next_generation,
+                kind: EnterpriseProviderLifecycleEventKind::ImportedRotationComplete,
+                state: EnterpriseProviderLifecycleState::Active,
+                revocation_reason: None,
+                attestation_hash: None,
+                created_at: now,
+                event_hash: None,
+            };
+            let event =
+                tuff_cse_winfs::enterprise_provider_lifecycle::normalize_lifecycle_event(event);
+            store.save_enterprise_provider_lifecycle_event(&event)?;
+
+            if let Some(mut policy) = store.load_enterprise_provider_policy(&plan.provider_id.0)? {
+                policy.provider_generation = Some(plan.next_generation.0);
+                policy = tuff_cse_winfs::enterprise_provider::normalize_enterprise_provider_policy(
+                    policy,
+                );
+                store.save_enterprise_provider_policy(&policy)?;
+            }
+
+            if json {
+                println!("{}", serde_json::to_string(&event)?);
+            } else {
+                println!("Rotation complete for provider: {}", plan.provider_id.0);
+            }
+        }
+        EnterpriseProviderLifecycleCommands::RenewAttestation {
+            enterprise_provider,
+            attestation,
+            store_root,
+            json,
+        } => {
+            let store = open_store(store_root)?;
+            let active_gen = store
+                .find_active_provider_generation(&enterprise_provider)?
+                .unwrap_or(EnterpriseProviderGeneration(1));
+
+            let file = std::fs::File::open(attestation)?;
+            let mut attestation_obj: EnterpriseProviderAttestationSummary =
+                serde_json::from_reader(file)?;
+            attestation_obj.provider_generation = Some(active_gen.0);
+            attestation_obj =
+                tuff_cse_winfs::enterprise_provider::normalize_enterprise_provider_attestation(
+                    attestation_obj,
+                );
+            store.save_enterprise_provider_attestation(&attestation_obj)?;
+
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            let event = EnterpriseProviderLifecycleEvent {
+                event_id: EnterpriseProviderLifecycleEventId(format!("EV-RENEW-{}", now)),
+                provider_id: EnterpriseProviderPolicyId(enterprise_provider.clone()),
+                generation: active_gen,
+                kind: EnterpriseProviderLifecycleEventKind::ImportedAttestationRenewal,
+                state: EnterpriseProviderLifecycleState::Active,
+                revocation_reason: None,
+                attestation_hash: attestation_obj.attestation_hash.clone(),
+                created_at: now,
+                event_hash: None,
+            };
+            let event =
+                tuff_cse_winfs::enterprise_provider_lifecycle::normalize_lifecycle_event(event);
+            store.save_enterprise_provider_lifecycle_event(&event)?;
+
+            if json {
+                println!("{}", serde_json::to_string(&event)?);
+            } else {
+                println!("Attestation renewed for provider: {}", enterprise_provider);
             }
         }
     }

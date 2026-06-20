@@ -56,6 +56,18 @@ pub struct OperationJournalRecord {
     pub enterprise_recovery_rejection_reason: Option<EnterpriseRecoveryRejectionReason>,
     pub enterprise_provider_enforcement_status: Option<EnterpriseProviderEnforcementDecision>,
     pub enterprise_provider_rejection_reason: Option<EnterpriseProviderRejectionReason>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enterprise_provider_lifecycle_event_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enterprise_provider_generation: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enterprise_provider_lifecycle_state: Option<crate::enterprise_provider_lifecycle::EnterpriseProviderLifecycleState>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enterprise_provider_lifecycle_enforcement_status: Option<crate::enterprise_provider_lifecycle_enforcement::EnterpriseProviderLifecycleEnforcementDecision>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enterprise_provider_lifecycle_rejection_reason: Option<crate::enterprise_provider_lifecycle_enforcement::EnterpriseProviderLifecycleRejectionReason>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enterprise_provider_rotation_plan_id: Option<String>,
     pub approval_status: Option<String>,
     pub recovery_reason: Option<String>,
     pub reason: String,
@@ -194,4 +206,57 @@ pub fn detect_uncommitted_begin(
         }
     }
     last_begin
+}
+
+impl Default for OperationJournalRecord {
+    fn default() -> Self {
+        Self {
+            seq: 0,
+            phase: OperationJournalPhase::Begin,
+            operation_id: String::new(),
+            kind: OperationKind::Status,
+            volume: String::new(),
+            requested_by: String::new(),
+            result_status: OperationStatus::Accepted,
+            previous_state: VolumeBindingState::Unregistered,
+            next_state: VolumeBindingState::Unregistered,
+            descriptor_id: None,
+            plan_id: None,
+            session_id: None,
+            manual_flow_id: None,
+            approval_id: None,
+            decision_id: None,
+            enterprise_authority_policy_id: None,
+            enterprise_quorum_policy_id: None,
+            enterprise_recovery_request_id: None,
+            enterprise_recovery_decision_id: None,
+            enterprise_provider_policy_id: None,
+            enterprise_provider_attestation_id: None,
+            enterprise_provider_kind: None,
+            enterprise_provider_health: None,
+            enterprise_provider_attestation_hash: None,
+            enterprise_recovery_status: None,
+            enterprise_recovery_enforcement_status: None,
+            enterprise_recovery_rejection_reason: None,
+            enterprise_provider_enforcement_status: None,
+            enterprise_provider_rejection_reason: None,
+            enterprise_provider_lifecycle_event_id: None,
+            enterprise_provider_generation: None,
+            enterprise_provider_lifecycle_state: None,
+            enterprise_provider_lifecycle_enforcement_status: None,
+            enterprise_provider_lifecycle_rejection_reason: None,
+            enterprise_provider_rotation_plan_id: None,
+            approval_status: None,
+            recovery_reason: None,
+            reason: String::new(),
+            timestamp: 0,
+            record_hash: None,
+            previous_record_hash: None,
+            chain_hash: None,
+            signing_key_id: None,
+            signature_algorithm: None,
+            signature: None,
+            signed_at: None,
+        }
+    }
 }

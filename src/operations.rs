@@ -11,7 +11,8 @@ use crate::enterprise_provider::{
     self, EnterpriseProviderAttestationSummary, EnterpriseProviderPolicy,
 };
 use crate::enterprise_provider_enforcement::{
-    EnterpriseProviderEnforcementDecision, EnterpriseProviderRejectionReason,
+    EnterpriseProviderEnforcementDecision, EnterpriseProviderEnforcer,
+    EnterpriseProviderRejectionReason,
 };
 use crate::enterprise_quorum;
 use crate::enterprise_recovery;
@@ -74,6 +75,10 @@ pub struct OperationRequest {
     pub enterprise_authority_policy_id: Option<String>,
     pub enterprise_quorum_policy_id: Option<String>,
     pub enterprise_recovery_decision_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enterprise_provider_generation: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enterprise_provider_lifecycle_event_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -325,6 +330,7 @@ pub fn execute_managed_operation(
         signature_algorithm: None,
         signature: None,
         signed_at: None,
+        ..Default::default()
     };
 
     // Append Begin
@@ -520,6 +526,7 @@ pub fn execute_export_operation(
         signature_algorithm: None,
         signature: None,
         signed_at: None,
+        ..Default::default()
     };
 
     let _ = crate::operation_journal::append_begin_record(
@@ -588,13 +595,266 @@ pub fn execute_recover_operation(
         ));
     }
 
-    let enterprise_request = if let Some(enterprise_decision_id) =
-        request.enterprise_recovery_decision_id.as_ref()
-    {
-        let enterprise_decision = store
-            .load_enterprise_recovery_decision(enterprise_decision_id)?
-            .ok_or_else(|| anyhow::anyhow!("enterprise recovery decision not found"))?;
-        let enterprise_request = EnterpriseRecoveryRequest {
+    let enterprise_decision_id = request.enterprise_recovery_decision_id.as_ref();
+
+    let mut enterprise_decision_opt = None;
+    let mut domain_recovery_request_opt = None;
+    let mut domain_recovery_decision_opt = None;
+    let mut domain_policy_opt = None;
+
+    if let Some(decision_id) = enterprise_decision_id {
+        let enterprise_decision = match store.load_enterprise_recovery_decision(decision_id)? {
+            Some(d) => d,
+            None => {
+                return Ok(build_result(
+                    &request,
+                    OperationStatus::Rejected,
+                    state.current,
+                    state.current,
+                    "Enterprise recovery decision not found".to_string(),
+                ));
+            }
+        };
+        let domain_recovery_request = match store
+            .load_domain_recovery_request(&enterprise_decision.domain_recovery_request_id)?
+        {
+            Some(r) => r,
+            None => {
+                return Ok(build_result(
+                    &request,
+                    OperationStatus::Rejected,
+                    state.current,
+                    state.current,
+                    "Domain recovery request not found".to_string(),
+                ));
+            }
+        };
+        let domain_recovery_decision = match store
+            .load_domain_recovery_decision(&enterprise_decision.domain_recovery_decision_id)?
+        {
+            Some(d) => d,
+            None => {
+                return Ok(build_result(
+                    &request,
+                    OperationStatus::Rejected,
+                    state.current,
+                    state.current,
+                    "Domain recovery decision not found".to_string(),
+                ));
+            }
+        };
+        let domain_policy =
+            match store.load_domain_policy(&domain_recovery_request.domain_policy_id)? {
+                Some(p) => p,
+                None => {
+                    return Ok(build_result(
+                        &request,
+                        OperationStatus::Rejected,
+                        state.current,
+                        state.current,
+                        "Domain policy not found".to_string(),
+                    ));
+                }
+            };
+        enterprise_decision_opt = Some(enterprise_decision);
+        domain_recovery_request_opt = Some(domain_recovery_request);
+        domain_recovery_decision_opt = Some(domain_recovery_decision);
+        domain_policy_opt = Some(domain_policy);
+    }
+
+    // 1. DomainPolicy evaluate
+    if let Some(ref enterprise_decision) = enterprise_decision_opt {
+        let domain_policy = domain_policy_opt.as_ref().unwrap();
+        if domain_policy.source_kind
+            == crate::domain_policy::DomainPolicySourceKind::ReservedLiveDomainController
+        {
+            return Ok(build_result(
+                &request,
+                OperationStatus::Rejected,
+                state.current,
+                state.current,
+                "Reserved live domain controller source is not implemented".to_string(),
+            ));
+        }
+    }
+
+    // 2. OfflineSnapshot verify
+    if let Some(ref enterprise_decision) = enterprise_decision_opt {
+        let domain_recovery_request = domain_recovery_request_opt.as_ref().unwrap();
+        if let Some(ref snapshot_id) = domain_recovery_request.offline_snapshot_id {
+            let snapshot = match store.load_offline_policy_snapshot(snapshot_id)? {
+                Some(s) => s,
+                None => {
+                    return Ok(build_result(
+                        &request,
+                        OperationStatus::Rejected,
+                        state.current,
+                        state.current,
+                        "Offline snapshot not found".to_string(),
+                    ));
+                }
+            };
+            if !snapshot.is_fresh(request.timestamp) {
+                return Ok(build_result(
+                    &request,
+                    OperationStatus::Rejected,
+                    state.current,
+                    state.current,
+                    "Offline snapshot expired or invalid".to_string(),
+                ));
+            }
+        }
+    }
+
+    let mut enterprise_decision_opt = None;
+    let mut domain_recovery_request_opt = None;
+    let mut domain_recovery_decision_opt = None;
+
+    if let Some(decision_id) = enterprise_decision_id {
+        let enterprise_decision = match store.load_enterprise_recovery_decision(decision_id)? {
+            Some(d) => d,
+            None => {
+                return Ok(build_result(
+                    &request,
+                    OperationStatus::Rejected,
+                    state.current,
+                    state.current,
+                    "Enterprise recovery decision not found".to_string(),
+                ));
+            }
+        };
+        let domain_recovery_request = match store
+            .load_domain_recovery_request(&enterprise_decision.domain_recovery_request_id)?
+        {
+            Some(r) => r,
+            None => {
+                return Ok(build_result(
+                    &request,
+                    OperationStatus::Rejected,
+                    state.current,
+                    state.current,
+                    "Domain recovery request not found".to_string(),
+                ));
+            }
+        };
+        let domain_recovery_decision = match store
+            .load_domain_recovery_decision(&enterprise_decision.domain_recovery_decision_id)?
+        {
+            Some(d) => d,
+            None => {
+                return Ok(build_result(
+                    &request,
+                    OperationStatus::Rejected,
+                    state.current,
+                    state.current,
+                    "Domain recovery decision not found".to_string(),
+                ));
+            }
+        };
+        enterprise_decision_opt = Some(enterprise_decision);
+        domain_recovery_request_opt = Some(domain_recovery_request);
+        domain_recovery_decision_opt = Some(domain_recovery_decision);
+    }
+
+    // 3. DomainApprovalEnforcer
+    if let Some(ref enterprise_decision) = enterprise_decision_opt {
+        let domain_recovery_request = domain_recovery_request_opt.as_ref().unwrap();
+        let domain_recovery_decision = domain_recovery_decision_opt.as_ref().unwrap();
+        let domain_policy =
+            match store.load_domain_policy(&domain_recovery_request.domain_policy_id)? {
+                Some(p) => p,
+                None => {
+                    return Ok(build_result(
+                        &request,
+                        OperationStatus::Rejected,
+                        state.current,
+                        state.current,
+                        "Domain policy not found".to_string(),
+                    ));
+                }
+            };
+
+        let snapshot = if let Some(ref snapshot_id) = domain_recovery_request.offline_snapshot_id {
+            store.load_offline_policy_snapshot(snapshot_id)?
+        } else {
+            None
+        };
+
+        let domain_approval_decision =
+            if let Some(ref approval_dec_id) = domain_recovery_decision.approval_decision_id {
+                store.load_domain_approval_decision(approval_dec_id)?
+            } else {
+                None
+            };
+
+        let domain_approval_enforcer =
+            crate::domain_approval_enforcement::DomainApprovalEnforcer::new(store);
+        let domain_approval_res = domain_approval_enforcer.check_required_domain_approval(
+            domain_approval_decision.as_ref(),
+            request.kind,
+            &dummy_hash,
+            &domain_policy,
+            snapshot.as_ref(),
+        )?;
+        if matches!(
+            domain_approval_res,
+            crate::domain_approval_enforcement::DomainApprovalEnforcementDecision::Rejected
+        ) {
+            return Ok(build_result(
+                &request,
+                OperationStatus::Rejected,
+                state.current,
+                state.current,
+                "Domain approval check failed".to_string(),
+            ));
+        }
+    }
+
+    // 4. DomainRecoveryEnforcer
+    if let Some(ref enterprise_decision) = enterprise_decision_opt {
+        let domain_recovery_request = domain_recovery_request_opt.as_ref().unwrap();
+        let domain_recovery_decision = domain_recovery_decision_opt.as_ref().unwrap();
+
+        let domain_recovery_enforcer =
+            crate::domain_recovery_enforcement::DomainRecoveryEnforcer::new(store);
+        let domain_rec_res = domain_recovery_enforcer.check_recovery_workflow(
+            Some(domain_recovery_decision),
+            domain_recovery_request,
+            request.kind,
+        )?;
+        if matches!(
+            domain_rec_res,
+            crate::domain_recovery_enforcement::DomainRecoveryEnforcementDecision::Rejected
+        ) {
+            return Ok(build_result(
+                &request,
+                OperationStatus::Rejected,
+                state.current,
+                state.current,
+                "Domain recovery check failed".to_string(),
+            ));
+        }
+    }
+
+    let mut enterprise_provider_policy: Option<EnterpriseProviderPolicy> = None;
+    let mut enterprise_provider_attestation: Option<EnterpriseProviderAttestationSummary> = None;
+    let mut enterprise_provider_enforcement_status: Option<EnterpriseProviderEnforcementDecision> =
+        Some(EnterpriseProviderEnforcementDecision::NotRequired);
+    let mut enterprise_provider_rejection_reason: Option<EnterpriseProviderRejectionReason> = None;
+
+    let mut enterprise_provider_lifecycle_event_id: Option<String> = None;
+    let mut enterprise_provider_generation: Option<u64> = None;
+    let mut enterprise_provider_lifecycle_state: Option<
+        crate::enterprise_provider_lifecycle::EnterpriseProviderLifecycleState,
+    > = None;
+    let mut enterprise_provider_lifecycle_enforcement_status: Option<crate::enterprise_provider_lifecycle_enforcement::EnterpriseProviderLifecycleEnforcementDecision> = None;
+    let mut enterprise_provider_lifecycle_rejection_reason: Option<crate::enterprise_provider_lifecycle_enforcement::EnterpriseProviderLifecycleRejectionReason> = None;
+    let mut enterprise_provider_rotation_plan_id: Option<String> = None;
+
+    let mut enterprise_request_opt: Option<EnterpriseRecoveryRequest> = None;
+
+    if let Some(ref enterprise_decision) = enterprise_decision_opt {
+        let enterprise_req = EnterpriseRecoveryRequest {
             request_id: enterprise_recovery::EnterpriseRecoveryRequestId(format!(
                 "ERQ-{}",
                 request.operation_id
@@ -613,100 +873,121 @@ pub fn execute_recover_operation(
             source_kind: enterprise_decision.source_kind,
             created_at: request.timestamp,
         };
+        enterprise_request_opt = Some(enterprise_req);
 
-        let authority_policy = store
-            .load_enterprise_authority_policy(&enterprise_request.enterprise_authority_policy_id.0)?
-            .ok_or_else(|| anyhow::anyhow!("enterprise authority policy not found"))?;
-        let quorum_policy = store
-            .load_enterprise_quorum_policy(&enterprise_request.enterprise_quorum_policy_id.0)?
-            .ok_or_else(|| anyhow::anyhow!("enterprise quorum policy not found"))?;
-        let enforcer = EnterpriseRecoveryEnforcer::new(store);
-        match enforcer.check_enterprise_recovery(
-            &enterprise_request,
-            Some(&enterprise_decision),
-            Some(&authority_policy),
-            Some(&quorum_policy),
-        )? {
-            EnterpriseRecoveryEnforcementDecision::Allowed => {
-                Some((enterprise_request, enterprise_decision))
-            }
-            EnterpriseRecoveryEnforcementDecision::Rejected => {
-                return Ok(build_result(
-                    &request,
-                    OperationStatus::Rejected,
-                    state.current,
-                    state.current,
-                    "Enterprise recovery gate rejected".to_string(),
-                ));
-            }
-            EnterpriseRecoveryEnforcementDecision::ReservedProviderExecution => {
-                return Ok(build_result(
-                    &request,
-                    OperationStatus::Reserved,
-                    state.current,
-                    state.current,
-                    "Enterprise recovery reserved provider execution".to_string(),
-                ));
-            }
-            EnterpriseRecoveryEnforcementDecision::NotRequired => None,
-        }
-    } else {
-        None
-    };
-
-    // Enforcement Check
-    let enforcer = ApprovalEnforcer::new(store);
-    let enf_result = enforcer.check_required_approval(
-        local_policy,
-        LocalOperationClass::Recover,
-        &dummy_hash,
-        request.approval_id.clone(),
-    )?;
-
-    if enf_result.decision == ApprovalEnforcementDecision::Rejected {
-        let mut res = build_result(
-            &request,
-            OperationStatus::Rejected,
-            state.current,
-            state.current,
-            format!("CSE-APPROVAL-REJECTION: {:?}", enf_result.reason.unwrap()),
-        );
-        res.approval_enforcement_decision = Some(enf_result.decision);
-        res.approval_rejection_reason = enf_result.reason;
-        return Ok(res);
-    }
-
-    let mut enterprise_provider_policy: Option<EnterpriseProviderPolicy> = None;
-    let mut enterprise_provider_attestation: Option<EnterpriseProviderAttestationSummary> = None;
-    let mut enterprise_provider_enforcement_status: Option<EnterpriseProviderEnforcementDecision> =
-        Some(EnterpriseProviderEnforcementDecision::NotRequired);
-    let mut enterprise_provider_rejection_reason: Option<EnterpriseProviderRejectionReason> = None;
-
-    if let Some((enterprise_request, enterprise_decision)) = enterprise_request.as_ref() {
-        if let Some(provider_id) = enterprise_request.enterprise_provider_id.as_ref() {
-            let provider_policy = store
+        if let Some(ref provider_id) = enterprise_decision.enterprise_provider_id {
+            let policy = store
                 .load_enterprise_provider_policy(provider_id)?
                 .ok_or_else(|| anyhow::anyhow!("enterprise provider policy not found"))?;
             let attestation = store.find_valid_enterprise_provider_attestation_summary(
                 provider_id,
-                enterprise_request.provider_attestation_hash.as_deref(),
+                enterprise_decision.provider_attestation_hash.as_deref(),
             )?;
+
+            enterprise_provider_policy = Some(policy.clone());
+            enterprise_provider_attestation = attestation.clone();
+
+            if let Some(event) = store.find_latest_provider_lifecycle_event(provider_id)? {
+                enterprise_provider_lifecycle_event_id = Some(event.event_id.0.clone());
+                enterprise_provider_generation = Some(event.generation.0);
+                enterprise_provider_lifecycle_state = Some(event.state);
+            }
+            if let Some(plan) = store.find_latest_rotation_plan(provider_id)? {
+                enterprise_provider_rotation_plan_id = Some(plan.plan_id.0.clone());
+            }
+
+            // 5. EnterpriseProviderLifecycleEnforcer
+            let lifecycle_enforcer = crate::enterprise_provider_lifecycle_enforcement::EnterpriseProviderLifecycleEnforcer::new(store);
+            let lifecycle_decision = lifecycle_enforcer.check_provider_lifecycle(
+                enterprise_request_opt.as_ref().unwrap(),
+                Some(&enterprise_decision),
+                Some(&policy),
+                attestation.as_ref(),
+            )?;
+
+            enterprise_provider_lifecycle_enforcement_status = Some(lifecycle_decision);
+
+            match lifecycle_decision {
+                crate::enterprise_provider_lifecycle_enforcement::EnterpriseProviderLifecycleEnforcementDecision::Rejected(reason) => {
+                    enterprise_provider_lifecycle_rejection_reason = Some(reason);
+
+                    let record = crate::operation_journal::OperationJournalRecord {
+                        seq: 0,
+                        phase: crate::operation_journal::OperationJournalPhase::Begin,
+                        operation_id: request.operation_id.clone(),
+                        kind: OperationKind::Recover,
+                        volume: request.volume.clone(),
+                        requested_by: request.requested_by.clone(),
+                        result_status: OperationStatus::Rejected,
+                        previous_state: state.current,
+                        next_state: state.current,
+                        descriptor_id: None,
+                        plan_id: None,
+                        session_id: None,
+                        manual_flow_id: None,
+                        approval_id: request.approval_id.clone(),
+                        decision_id: None,
+                        enterprise_authority_policy_id: Some(enterprise_decision.enterprise_authority_policy_id.0.clone()),
+                        enterprise_quorum_policy_id: Some(enterprise_decision.enterprise_quorum_policy_id.0.clone()),
+                        enterprise_recovery_request_id: Some(enterprise_request_opt.as_ref().unwrap().request_id.0.clone()),
+                        enterprise_recovery_decision_id: request.enterprise_recovery_decision_id.clone(),
+                        enterprise_provider_policy_id: Some(provider_id.clone()),
+                        enterprise_provider_attestation_id: attestation.as_ref().map(|a| a.attestation_id.0.clone()),
+                        enterprise_provider_kind: Some(policy.provider_kind),
+                        enterprise_provider_health: Some(policy.health),
+                        enterprise_provider_attestation_hash: enterprise_decision.provider_attestation_hash.clone(),
+                        enterprise_recovery_status: Some(enterprise_decision.status),
+                        enterprise_recovery_enforcement_status: Some(EnterpriseRecoveryEnforcementDecision::Allowed),
+                        enterprise_recovery_rejection_reason: None,
+                        enterprise_provider_enforcement_status: Some(EnterpriseProviderEnforcementDecision::Rejected),
+                        enterprise_provider_rejection_reason: Some(EnterpriseProviderRejectionReason::ProviderRevoked),
+                        enterprise_provider_lifecycle_event_id: enterprise_provider_lifecycle_event_id.clone(),
+                        enterprise_provider_generation,
+                        enterprise_provider_lifecycle_state,
+                        enterprise_provider_lifecycle_enforcement_status: Some(lifecycle_decision),
+                        enterprise_provider_lifecycle_rejection_reason: Some(reason),
+                        enterprise_provider_rotation_plan_id: enterprise_provider_rotation_plan_id.clone(),
+                        approval_status: None,
+                        recovery_reason: Some(reason_code.clone()),
+                        reason: format!("Enterprise provider lifecycle rejected: {:?}", reason),
+                        timestamp: request.timestamp,
+                        record_hash: None,
+                        previous_record_hash: None,
+                        chain_hash: None,
+                        signing_key_id: None,
+                        signature_algorithm: None,
+                        signature: None,
+                        signed_at: None,
+                    };
+
+                    let _ = append_journal_record(store, &dummy_hash, &request.volume, record, crate::operation_journal::OperationJournalPhase::Begin);
+
+                    return Ok(build_result(
+                        &request,
+                        OperationStatus::Rejected,
+                        state.current,
+                        state.current,
+                        format!("Enterprise provider lifecycle rejected: {:?}", reason),
+                    ));
+                }
+                _ => {}
+            }
+
+            // 6. EnterpriseProviderEnforcer
+            let provider_enforcer = EnterpriseProviderEnforcer::new(store);
             let authority_policy = store
                 .load_enterprise_authority_policy(
-                    &enterprise_request.enterprise_authority_policy_id.0,
+                    &enterprise_decision.enterprise_authority_policy_id.0,
                 )?
                 .ok_or_else(|| anyhow::anyhow!("enterprise authority policy not found"))?;
-            let provider_enforcer = EnterpriseRecoveryEnforcer::new(store);
             let provider_decision = provider_enforcer.check_enterprise_provider(
-                enterprise_request,
-                Some(enterprise_decision),
-                Some(&provider_policy),
+                enterprise_request_opt.as_ref().unwrap(),
+                Some(&enterprise_decision),
+                Some(&policy),
                 attestation.as_ref(),
                 Some(&authority_policy),
             )?;
             enterprise_provider_enforcement_status = Some(provider_decision);
-            enterprise_provider_policy = Some(provider_policy);
-            enterprise_provider_attestation = attestation;
             if provider_decision == EnterpriseProviderEnforcementDecision::Rejected {
                 return Ok(build_result(
                     &request,
@@ -728,6 +1009,74 @@ pub fn execute_recover_operation(
         }
     }
 
+    // 7. EnterpriseRecoveryEnforcer
+    if let Some(decision_id) = enterprise_decision_id {
+        let enterprise_decision = store
+            .load_enterprise_recovery_decision(decision_id)?
+            .unwrap();
+        let authority_policy = store
+            .load_enterprise_authority_policy(
+                &enterprise_decision.enterprise_authority_policy_id.0,
+            )?
+            .ok_or_else(|| anyhow::anyhow!("enterprise authority policy not found"))?;
+        let quorum_policy = store
+            .load_enterprise_quorum_policy(&enterprise_decision.enterprise_quorum_policy_id.0)?
+            .ok_or_else(|| anyhow::anyhow!("enterprise quorum policy not found"))?;
+        let recovery_enforcer = EnterpriseRecoveryEnforcer::new(store);
+        let rec_decision = recovery_enforcer.check_enterprise_recovery(
+            enterprise_request_opt.as_ref().unwrap(),
+            Some(&enterprise_decision),
+            Some(&authority_policy),
+            Some(&quorum_policy),
+        )?;
+        match rec_decision {
+            EnterpriseRecoveryEnforcementDecision::Rejected => {
+                return Ok(build_result(
+                    &request,
+                    OperationStatus::Rejected,
+                    state.current,
+                    state.current,
+                    "Enterprise recovery gate rejected".to_string(),
+                ));
+            }
+            EnterpriseRecoveryEnforcementDecision::ReservedProviderExecution => {
+                return Ok(build_result(
+                    &request,
+                    OperationStatus::Reserved,
+                    state.current,
+                    state.current,
+                    "Enterprise recovery reserved provider execution".to_string(),
+                ));
+            }
+            _ => {}
+        }
+    }
+
+    // 8. P4B LocalApprovalEnforcer
+    let local_approval_enforcer = ApprovalEnforcer::new(store);
+    let local_approval_res = local_approval_enforcer.check_required_approval(
+        local_policy,
+        LocalOperationClass::Recover,
+        &dummy_hash,
+        request.approval_id.clone(),
+    )?;
+
+    if local_approval_res.decision == ApprovalEnforcementDecision::Rejected {
+        let mut res = build_result(
+            &request,
+            OperationStatus::Rejected,
+            state.current,
+            state.current,
+            format!(
+                "CSE-APPROVAL-REJECTION: {:?}",
+                local_approval_res.reason.unwrap()
+            ),
+        );
+        res.approval_enforcement_decision = Some(local_approval_res.decision);
+        res.approval_rejection_reason = local_approval_res.reason;
+        return Ok(res);
+    }
+
     // Prepare journal record
     let record_template = crate::operation_journal::OperationJournalRecord {
         seq: 0,
@@ -743,17 +1092,17 @@ pub fn execute_recover_operation(
         plan_id: None,
         session_id: None,
         manual_flow_id: None,
-        approval_id: enf_result.approval_id.clone(),
+        approval_id: local_approval_res.approval_id.clone(),
         decision_id: None,
-        enterprise_authority_policy_id: enterprise_request
+        enterprise_authority_policy_id: enterprise_request_opt
             .as_ref()
-            .map(|(request, _)| request.enterprise_authority_policy_id.0.clone()),
-        enterprise_quorum_policy_id: enterprise_request
+            .map(|req| req.enterprise_authority_policy_id.0.clone()),
+        enterprise_quorum_policy_id: enterprise_request_opt
             .as_ref()
-            .map(|(request, _)| request.enterprise_quorum_policy_id.0.clone()),
-        enterprise_recovery_request_id: enterprise_request
+            .map(|req| req.enterprise_quorum_policy_id.0.clone()),
+        enterprise_recovery_request_id: enterprise_request_opt
             .as_ref()
-            .map(|(request, _)| request.request_id.0.clone()),
+            .map(|req| req.request_id.0.clone()),
         enterprise_recovery_decision_id: request.enterprise_recovery_decision_id.clone(),
         enterprise_provider_policy_id: enterprise_provider_policy
             .as_ref()
@@ -775,16 +1124,22 @@ pub fn execute_recover_operation(
                     .map(|hash| hash.0.clone())
             },
         ),
-        enterprise_recovery_status: enterprise_request
-            .as_ref()
-            .map(|(_, decision)| decision.status),
-        enterprise_recovery_enforcement_status: enterprise_request
+        enterprise_recovery_status: enterprise_decision_id
+            .and_then(|id| store.load_enterprise_recovery_decision(id).ok().flatten())
+            .map(|decision| decision.status),
+        enterprise_recovery_enforcement_status: enterprise_request_opt
             .as_ref()
             .map(|_| EnterpriseRecoveryEnforcementDecision::Allowed),
         enterprise_recovery_rejection_reason: None,
         enterprise_provider_enforcement_status: enterprise_provider_enforcement_status,
         enterprise_provider_rejection_reason: enterprise_provider_rejection_reason,
-        approval_status: if enf_result.decision == ApprovalEnforcementDecision::Allowed {
+        enterprise_provider_lifecycle_event_id: enterprise_provider_lifecycle_event_id,
+        enterprise_provider_generation,
+        enterprise_provider_lifecycle_state,
+        enterprise_provider_lifecycle_enforcement_status,
+        enterprise_provider_lifecycle_rejection_reason,
+        enterprise_provider_rotation_plan_id,
+        approval_status: if local_approval_res.decision == ApprovalEnforcementDecision::Allowed {
             Some("Approved".to_string())
         } else {
             None
@@ -801,10 +1156,12 @@ pub fn execute_recover_operation(
         signed_at: None,
     };
 
-    let _ = crate::operation_journal::append_begin_record(
-        store.root_path(),
+    let _ = append_journal_record(
+        store,
         &dummy_hash,
+        &request.volume,
         record_template.clone(),
+        crate::operation_journal::OperationJournalPhase::Begin,
     );
 
     let descriptor = recovery_key::build_recovery_descriptor(
@@ -819,19 +1176,21 @@ pub fn execute_recover_operation(
     store.save_recovery_descriptor(&descriptor)?;
     store.save_recovery_plan(&plan)?;
 
-    if let Some(aid) = enf_result.approval_id {
-        enforcer.consume_approval_if_required(local_policy, &aid)?;
+    if let Some(aid) = local_approval_res.approval_id {
+        local_approval_enforcer.consume_approval_if_required(local_policy, &aid)?;
     }
 
-    if let Some((_, decision)) = enterprise_request {
+    if let Some(decision_id) = enterprise_decision_id {
         EnterpriseRecoveryEnforcer::new(store)
-            .consume_enterprise_recovery_decision_if_required(&decision.decision_id.0)?;
+            .consume_enterprise_recovery_decision_if_required(decision_id)?;
     }
 
-    let _ = crate::operation_journal::append_commit_record(
-        store.root_path(),
+    let _ = append_journal_record(
+        store,
         &dummy_hash,
+        &request.volume,
         record_template,
+        crate::operation_journal::OperationJournalPhase::Commit,
     );
 
     let mut final_res = build_result(
@@ -841,8 +1200,64 @@ pub fn execute_recover_operation(
         state.current,
         format!("Recovery plan generated: {}", plan.recovery_plan_id),
     );
-    final_res.approval_enforcement_decision = Some(enf_result.decision);
+    final_res.approval_enforcement_decision = Some(local_approval_res.decision);
     Ok(final_res)
+}
+
+fn append_journal_record(
+    store: &BindingStore,
+    dummy_hash: &str,
+    volume: &str,
+    mut record: crate::operation_journal::OperationJournalRecord,
+    phase: crate::operation_journal::OperationJournalPhase,
+) -> Result<()> {
+    record.phase = phase;
+    if let Ok(signer) = DevAuditSigner::new(format!("DEV-SIGNER-{}", volume)) {
+        let prev_hash =
+            crate::operation_journal::read_journal_records(store.root_path(), dummy_hash)?
+                .last()
+                .and_then(|r| r.chain_hash.clone())
+                .unwrap_or_else(|| vec![0u8; 32]);
+        crate::operation_journal::append_signed_record(
+            store.root_path(),
+            dummy_hash,
+            record,
+            &prev_hash,
+            &signer,
+        )?;
+    } else {
+        match phase {
+            crate::operation_journal::OperationJournalPhase::Begin => {
+                crate::operation_journal::append_begin_record(
+                    store.root_path(),
+                    dummy_hash,
+                    record,
+                )?;
+            }
+            crate::operation_journal::OperationJournalPhase::Commit => {
+                crate::operation_journal::append_commit_record(
+                    store.root_path(),
+                    dummy_hash,
+                    record,
+                )?;
+            }
+            crate::operation_journal::OperationJournalPhase::Abort => {
+                crate::operation_journal::append_abort_record(
+                    store.root_path(),
+                    dummy_hash,
+                    record,
+                )?;
+            }
+            crate::operation_journal::OperationJournalPhase::Recovery => {
+                crate::operation_journal::append_recovery_record(
+                    store.root_path(),
+                    dummy_hash,
+                    record,
+                )?;
+            }
+        }
+    }
+    Ok(())
 }
 
 pub fn execute_rebind_operation(
@@ -938,6 +1353,7 @@ pub fn execute_rebind_operation(
         signature_algorithm: None,
         signature: None,
         signed_at: None,
+        ..Default::default()
     };
 
     let _ = crate::operation_journal::append_begin_record(
@@ -1070,6 +1486,7 @@ pub fn execute_manual_flow_operation(
         signature_algorithm: None,
         signature: None,
         signed_at: None,
+        ..Default::default()
     };
 
     let _ = crate::operation_journal::append_begin_record(
@@ -1180,4 +1597,23 @@ pub fn execute_manual_flow_operation(
     );
     final_res.approval_enforcement_decision = Some(enf_result.decision);
     Ok(final_res)
+}
+
+impl Default for OperationRequest {
+    fn default() -> Self {
+        Self {
+            operation_id: String::new(),
+            kind: OperationKind::Status,
+            volume: String::new(),
+            requested_by: String::new(),
+            policy_id: String::new(),
+            timestamp: 0,
+            approval_id: None,
+            enterprise_authority_policy_id: None,
+            enterprise_quorum_policy_id: None,
+            enterprise_recovery_decision_id: None,
+            enterprise_provider_generation: None,
+            enterprise_provider_lifecycle_event_id: None,
+        }
+    }
 }

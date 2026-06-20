@@ -549,6 +549,7 @@ mod tests {
                 enterprise_authority_policy_id: Some("EA-001".to_string()),
                 enterprise_quorum_policy_id: Some("EQ-001".to_string()),
                 enterprise_recovery_decision_id: Some("ERD-001".to_string()),
+                ..Default::default()
             },
             &tuff_cse_winfs::managed_policy::ManagedPolicy::default(),
             &tuff_cse_winfs::recovery_key::default_recovery_policy(),
@@ -576,6 +577,7 @@ mod tests {
             enterprise_authority_policy_id: None,
             enterprise_quorum_policy_id: None,
             enterprise_recovery_decision_id: None,
+            ..Default::default()
         };
         let local_policy = LocalPolicy::default();
         let result = tuff_cse_winfs::operations::execute_manual_flow_operation(
@@ -650,6 +652,7 @@ mod tests {
             signature_algorithm: None,
             signature: None,
             signed_at: None,
+            ..Default::default()
         };
         operation_journal::append_signed_record(
             store.root_path(),
@@ -728,6 +731,7 @@ mod tests {
             signature_algorithm: None,
             signature: None,
             signed_at: None,
+            ..Default::default()
         };
         operation_journal::append_signed_record(
             store.root_path(),
@@ -807,6 +811,7 @@ mod tests {
             signature_algorithm: None,
             signature: None,
             signed_at: None,
+            ..Default::default()
         };
         operation_journal::append_signed_record(
             store.root_path(),
@@ -923,6 +928,7 @@ mod tests {
             signature_algorithm: None,
             signature: None,
             signed_at: None,
+            ..Default::default()
         };
         operation_journal::append_signed_record(
             store.root_path(),

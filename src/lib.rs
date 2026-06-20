@@ -15,6 +15,8 @@ pub mod driver;
 pub mod enterprise_authority;
 pub mod enterprise_provider;
 pub mod enterprise_provider_enforcement;
+pub mod enterprise_provider_lifecycle;
+pub mod enterprise_provider_lifecycle_enforcement;
 pub mod enterprise_quorum;
 pub mod enterprise_recovery;
 pub mod enterprise_recovery_enforcement;

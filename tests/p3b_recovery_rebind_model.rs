@@ -30,6 +30,7 @@ mod tests {
             enterprise_authority_policy_id: None,
             enterprise_quorum_policy_id: None,
             enterprise_recovery_decision_id: None,
+            ..Default::default()
         }
     }
 

@@ -74,6 +74,7 @@ mod tests {
                 EnterpriseProviderCapability::AuditOnly,
             ],
             health: EnterpriseProviderHealth::OfflineImported,
+            provider_generation: None,
             policy_hash: None,
             created_at: 1,
         })
@@ -87,6 +88,7 @@ mod tests {
             provider_kind: EnterpriseProviderKind::ImportedOfflineProvider,
             capabilities: vec![EnterpriseProviderCapability::RecoveryApprovalOnly],
             health: EnterpriseProviderHealth::OfflineImported,
+            provider_generation: None,
             valid_from: 1,
             valid_until: u64::MAX,
             revoked_at: None,
@@ -202,6 +204,7 @@ mod tests {
             provider_kind: EnterpriseProviderKind::ReservedCloudKms,
             capabilities: vec![EnterpriseProviderCapability::RecoveryApprovalOnly],
             health: EnterpriseProviderHealth::HealthyReserved,
+            provider_generation: None,
             policy_hash: None,
             created_at: 1,
         });
@@ -231,6 +234,7 @@ mod tests {
             provider_kind: EnterpriseProviderKind::ImportedOfflineProvider,
             capabilities: vec![EnterpriseProviderCapability::AuditOnly],
             health: EnterpriseProviderHealth::OfflineImported,
+            provider_generation: None,
             policy_hash: None,
             created_at: 1,
         });
@@ -349,6 +353,7 @@ mod tests {
             signature_algorithm: None,
             signature: None,
             signed_at: None,
+            ..Default::default()
         };
         operation_journal::append_signed_record(
             store.root_path(),
@@ -432,6 +437,7 @@ mod tests {
             signature_algorithm: None,
             signature: None,
             signed_at: None,
+            ..Default::default()
         };
         operation_journal::append_signed_record(
             store.root_path(),

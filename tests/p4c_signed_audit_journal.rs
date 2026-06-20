@@ -86,6 +86,7 @@ mod tests {
             signature_algorithm: None,
             signature: None,
             signed_at: None,
+            ..Default::default()
         };
         operation_journal::append_signed_record(
             store.root_path(),
@@ -169,6 +170,7 @@ mod tests {
             signature_algorithm: None,
             signature: None,
             signed_at: None,
+            ..Default::default()
         };
         operation_journal::append_signed_record(
             store.root_path(),
@@ -183,6 +185,79 @@ mod tests {
             operation_journal::read_journal_records(store.root_path(), &vol_hash).unwrap();
         records[0].enterprise_recovery_status =
             Some(tuff_cse_winfs::enterprise_recovery::EnterpriseRecoveryStatus::Denied);
+
+        let mut public_keys = std::collections::HashMap::new();
+        public_keys.insert("test-key".to_string(), signer.public_key_record());
+        assert!(tuff_cse_winfs::audit_chain::verify_journal_chain(&records, &public_keys).is_err());
+    }
+
+    #[test]
+    fn signed_journal_canonical_payload_includes_enterprise_provider_lifecycle_metadata() {
+        use tuff_cse_winfs::enterprise_provider_lifecycle::EnterpriseProviderLifecycleState;
+        use tuff_cse_winfs::enterprise_provider_lifecycle_enforcement::EnterpriseProviderLifecycleEnforcementDecision;
+
+        let record = operation_journal::OperationJournalRecord {
+            seq: 1,
+            phase: operation_journal::OperationJournalPhase::Commit,
+            operation_id: "op-1".to_string(),
+            enterprise_provider_generation: Some(1),
+            enterprise_provider_lifecycle_event_id: Some("EV-001".to_string()),
+            enterprise_provider_lifecycle_state: Some(EnterpriseProviderLifecycleState::Active),
+            enterprise_provider_lifecycle_enforcement_status: Some(
+                EnterpriseProviderLifecycleEnforcementDecision::Allowed,
+            ),
+            enterprise_provider_rotation_plan_id: Some("PLAN-001".to_string()),
+            ..Default::default()
+        };
+        let payload = tuff_cse_winfs::audit_chain::canonicalize_journal_payload(&record);
+        let payload_str = String::from_utf8_lossy(&payload);
+        assert!(payload_str.contains("enterprise_provider_generation"));
+        assert!(payload_str.contains("enterprise_provider_lifecycle_event_id"));
+        assert!(payload_str.contains("enterprise_provider_lifecycle_state"));
+        assert!(payload_str.contains("enterprise_provider_lifecycle_enforcement_status"));
+        assert!(payload_str.contains("enterprise_provider_rotation_plan_id"));
+    }
+
+    #[test]
+    fn tampering_enterprise_provider_lifecycle_metadata_is_detected() {
+        use tuff_cse_winfs::enterprise_provider_lifecycle::EnterpriseProviderLifecycleState;
+        use tuff_cse_winfs::enterprise_provider_lifecycle_enforcement::EnterpriseProviderLifecycleEnforcementDecision;
+
+        let (dir, store) = setup_store();
+        env::set_var("TUFF_CSE_WINFS_ALLOW_DEV_AUDIT_SIGNER", "1");
+        let signer = DevAuditSigner::new("test-key".to_string()).unwrap();
+        store
+            .save_audit_public_key(&signer.public_key_record())
+            .unwrap();
+
+        let vol_hash = BindingStore::volume_hash("D:");
+        let record = operation_journal::OperationJournalRecord {
+            seq: 1,
+            phase: operation_journal::OperationJournalPhase::Commit,
+            operation_id: "op-1".to_string(),
+            enterprise_provider_generation: Some(1),
+            enterprise_provider_lifecycle_event_id: Some("EV-001".to_string()),
+            enterprise_provider_lifecycle_state: Some(EnterpriseProviderLifecycleState::Active),
+            enterprise_provider_lifecycle_enforcement_status: Some(
+                EnterpriseProviderLifecycleEnforcementDecision::Allowed,
+            ),
+            enterprise_provider_rotation_plan_id: Some("PLAN-001".to_string()),
+            ..Default::default()
+        };
+
+        operation_journal::append_signed_record(
+            store.root_path(),
+            &vol_hash,
+            record,
+            &[0u8; 32],
+            &signer,
+        )
+        .unwrap();
+
+        let mut records =
+            operation_journal::read_journal_records(store.root_path(), &vol_hash).unwrap();
+        // Tamper with generation
+        records[0].enterprise_provider_generation = Some(2);
 
         let mut public_keys = std::collections::HashMap::new();
         public_keys.insert("test-key".to_string(), signer.public_key_record());

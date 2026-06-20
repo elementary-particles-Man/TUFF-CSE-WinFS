@@ -18,6 +18,7 @@ mod tests {
             enterprise_authority_policy_id: None,
             enterprise_quorum_policy_id: None,
             enterprise_recovery_decision_id: None,
+            ..Default::default()
         }
     }
 
@@ -250,6 +251,7 @@ mod tests {
             provider_kind: EnterpriseProviderKind::ImportedOfflineProvider,
             capabilities: vec![EnterpriseProviderCapability::RecoveryApprovalOnly],
             health: EnterpriseProviderHealth::OfflineImported,
+            provider_generation: None,
             policy_hash: Some(EnterpriseProviderPolicyHash("hash".to_string())),
             created_at: 1,
         };
@@ -260,6 +262,7 @@ mod tests {
             provider_kind: EnterpriseProviderKind::ImportedOfflineProvider,
             capabilities: vec![EnterpriseProviderCapability::RecoveryApprovalOnly],
             health: EnterpriseProviderHealth::OfflineImported,
+            provider_generation: None,
             valid_from: 1,
             valid_until: 2,
             revoked_at: None,
@@ -402,12 +405,167 @@ mod tests {
             signature_algorithm: None,
             signature: None,
             signed_at: None,
+            ..Default::default()
         };
         let json = serde_json::to_string(&record).unwrap();
         let decoded: OperationJournalRecord = serde_json::from_str(&json).unwrap();
         assert_eq!(
             decoded.enterprise_provider_policy_id.as_deref(),
             Some("EP-1")
+        );
+    }
+
+    #[test]
+    fn test_lifecycle_event_serializes_and_deserializes() {
+        use tuff_cse_winfs::enterprise_provider::EnterpriseProviderPolicyId;
+        use tuff_cse_winfs::enterprise_provider_lifecycle::*;
+
+        let event = normalize_lifecycle_event(EnterpriseProviderLifecycleEvent {
+            event_id: EnterpriseProviderLifecycleEventId("EV-001".to_string()),
+            provider_id: EnterpriseProviderPolicyId("EP-001".to_string()),
+            generation: EnterpriseProviderGeneration(1),
+            kind: EnterpriseProviderLifecycleEventKind::ImportedActivation,
+            state: EnterpriseProviderLifecycleState::Active,
+            revocation_reason: None,
+            attestation_hash: None,
+            created_at: 1234,
+            event_hash: None,
+        });
+
+        let json = serde_json::to_string(&event).unwrap();
+        let decoded: EnterpriseProviderLifecycleEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.event_id.0, "EV-001");
+        assert_eq!(decoded.generation.0, 1);
+        assert_eq!(decoded.state, EnterpriseProviderLifecycleState::Active);
+    }
+
+    #[test]
+    fn test_rotation_plan_serializes_and_deserializes() {
+        use tuff_cse_winfs::enterprise_provider::EnterpriseProviderPolicyId;
+        use tuff_cse_winfs::enterprise_provider_lifecycle::*;
+
+        let plan = normalize_rotation_plan(EnterpriseProviderRotationPlan {
+            plan_id: EnterpriseProviderRotationPlanId("PLAN-001".to_string()),
+            provider_id: EnterpriseProviderPolicyId("EP-001".to_string()),
+            current_generation: EnterpriseProviderGeneration(1),
+            next_generation: EnterpriseProviderGeneration(2),
+            created_at: 1234,
+            plan_hash: None,
+        });
+
+        let json = serde_json::to_string(&plan).unwrap();
+        let decoded: EnterpriseProviderRotationPlan = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.plan_id.0, "PLAN-001");
+        assert_eq!(decoded.current_generation.0, 1);
+        assert_eq!(decoded.next_generation.0, 2);
+    }
+
+    #[test]
+    fn test_lifecycle_state_serializes_and_deserializes() {
+        use tuff_cse_winfs::enterprise_provider_lifecycle::EnterpriseProviderLifecycleState;
+        let states = vec![
+            EnterpriseProviderLifecycleState::Active,
+            EnterpriseProviderLifecycleState::PendingRotation,
+            EnterpriseProviderLifecycleState::Superseded,
+            EnterpriseProviderLifecycleState::Revoked,
+            EnterpriseProviderLifecycleState::Expired,
+            EnterpriseProviderLifecycleState::ReservedLiveRefreshRequired,
+        ];
+        for state in states {
+            let json = serde_json::to_string(&state).unwrap();
+            let decoded: EnterpriseProviderLifecycleState = serde_json::from_str(&json).unwrap();
+            assert_eq!(decoded, state);
+        }
+    }
+
+    #[test]
+    fn test_lifecycle_rejection_reason_serializes_and_deserializes() {
+        use tuff_cse_winfs::enterprise_provider_lifecycle_enforcement::EnterpriseProviderLifecycleRejectionReason;
+        let reasons = vec![
+            EnterpriseProviderLifecycleRejectionReason::MissingLifecycleState,
+            EnterpriseProviderLifecycleRejectionReason::ProviderRevoked,
+            EnterpriseProviderLifecycleRejectionReason::ProviderSuperseded,
+            EnterpriseProviderLifecycleRejectionReason::ProviderExpired,
+            EnterpriseProviderLifecycleRejectionReason::GenerationMismatch,
+            EnterpriseProviderLifecycleRejectionReason::RotationIncomplete,
+            EnterpriseProviderLifecycleRejectionReason::LifecycleHashMismatch,
+            EnterpriseProviderLifecycleRejectionReason::AttestationRenewalRequired,
+            EnterpriseProviderLifecycleRejectionReason::ReservedLiveRefreshRequired,
+        ];
+        for reason in reasons {
+            let json = serde_json::to_string(&reason).unwrap();
+            let decoded: EnterpriseProviderLifecycleRejectionReason =
+                serde_json::from_str(&json).unwrap();
+            assert_eq!(decoded, reason);
+        }
+    }
+
+    #[test]
+    fn test_operation_request_lifecycle_fields_serialize_and_deserialize() {
+        let req = OperationRequest {
+            operation_id: "OP-1".to_string(),
+            enterprise_provider_generation: Some(2),
+            enterprise_provider_lifecycle_event_id: Some("EV-001".to_string()),
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&req).unwrap();
+        let decoded: OperationRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.operation_id, "OP-1");
+        assert_eq!(decoded.enterprise_provider_generation, Some(2));
+        assert_eq!(
+            decoded.enterprise_provider_lifecycle_event_id,
+            Some("EV-001".to_string())
+        );
+    }
+
+    #[test]
+    fn test_journal_record_lifecycle_fields_serialize_and_deserialize() {
+        use tuff_cse_winfs::enterprise_provider_lifecycle::EnterpriseProviderLifecycleState;
+        use tuff_cse_winfs::enterprise_provider_lifecycle_enforcement::{
+            EnterpriseProviderLifecycleEnforcementDecision,
+            EnterpriseProviderLifecycleRejectionReason,
+        };
+        use tuff_cse_winfs::operation_journal::{OperationJournalPhase, OperationJournalRecord};
+
+        let record = OperationJournalRecord {
+            seq: 1,
+            phase: OperationJournalPhase::Commit,
+            operation_id: "OP-1".to_string(),
+            enterprise_provider_generation: Some(1),
+            enterprise_provider_lifecycle_event_id: Some("EV-001".to_string()),
+            enterprise_provider_lifecycle_state: Some(EnterpriseProviderLifecycleState::Active),
+            enterprise_provider_lifecycle_enforcement_status: Some(
+                EnterpriseProviderLifecycleEnforcementDecision::Allowed,
+            ),
+            enterprise_provider_lifecycle_rejection_reason: Some(
+                EnterpriseProviderLifecycleRejectionReason::ProviderRevoked,
+            ),
+            enterprise_provider_rotation_plan_id: Some("PLAN-001".to_string()),
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&record).unwrap();
+        let decoded: OperationJournalRecord = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.operation_id, "OP-1");
+        assert_eq!(decoded.enterprise_provider_generation, Some(1));
+        assert_eq!(
+            decoded.enterprise_provider_lifecycle_event_id,
+            Some("EV-001".to_string())
+        );
+        assert_eq!(
+            decoded.enterprise_provider_lifecycle_state,
+            Some(EnterpriseProviderLifecycleState::Active)
+        );
+        assert_eq!(
+            decoded.enterprise_provider_lifecycle_enforcement_status,
+            Some(EnterpriseProviderLifecycleEnforcementDecision::Allowed)
+        );
+        assert_eq!(
+            decoded.enterprise_provider_lifecycle_rejection_reason,
+            Some(EnterpriseProviderLifecycleRejectionReason::ProviderRevoked)
+        );
+        assert_eq!(
+            decoded.enterprise_provider_rotation_plan_id,
+            Some("PLAN-001".to_string())
         );
     }
 }

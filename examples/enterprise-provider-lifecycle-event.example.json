@@ -1,0 +1,11 @@
+{
+  "event_id": "EV-TEST-1",
+  "provider_id": "EP-001",
+  "generation": 1,
+  "kind": "ImportedActivation",
+  "state": "Active",
+  "revocation_reason": null,
+  "attestation_hash": "ahash",
+  "created_at": 1718928000,
+  "event_hash": "205a109848529bb2df6a6448375cc9e9514e867b7e65834927cbcdbe803f26ad"
+}

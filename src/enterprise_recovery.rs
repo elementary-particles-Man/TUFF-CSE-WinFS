@@ -65,6 +65,10 @@ pub struct EnterpriseRecoveryDecision {
     pub enterprise_provider_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider_attestation_hash: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enterprise_provider_generation: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_lifecycle_event_id: Option<String>,
     pub approver_fingerprints: Vec<EnterpriseQuorumMemberFingerprint>,
     pub decision_hash: EnterpriseRecoveryDecisionHash,
     pub valid_from: u64,
@@ -86,6 +90,8 @@ struct EnterpriseRecoveryDecisionCanonical<'a> {
     enterprise_quorum_policy_id: &'a EnterpriseQuorumPolicyId,
     enterprise_provider_id: Option<&'a String>,
     provider_attestation_hash: Option<&'a String>,
+    enterprise_provider_generation: Option<u64>,
+    provider_lifecycle_event_id: Option<&'a String>,
     approver_fingerprints: &'a [EnterpriseQuorumMemberFingerprint],
     valid_from: u64,
     valid_until: u64,
@@ -106,6 +112,8 @@ pub fn canonicalize_enterprise_recovery_decision(decision: &EnterpriseRecoveryDe
         enterprise_quorum_policy_id: &decision.enterprise_quorum_policy_id,
         enterprise_provider_id: decision.enterprise_provider_id.as_ref(),
         provider_attestation_hash: decision.provider_attestation_hash.as_ref(),
+        enterprise_provider_generation: decision.enterprise_provider_generation,
+        provider_lifecycle_event_id: decision.provider_lifecycle_event_id.as_ref(),
         approver_fingerprints: &decision.approver_fingerprints,
         valid_from: decision.valid_from,
         valid_until: decision.valid_until,
@@ -175,6 +183,8 @@ pub fn build_enterprise_recovery_decision(
         enterprise_quorum_policy_id,
         enterprise_provider_id: None,
         provider_attestation_hash: None,
+        enterprise_provider_generation: None,
+        provider_lifecycle_event_id: None,
         approver_fingerprints,
         decision_hash: EnterpriseRecoveryDecisionHash(String::new()),
         valid_from,

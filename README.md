@@ -148,7 +148,7 @@ TUFF_CSE_WINFS_ALLOW_DEV_ENTERPRISE_RECOVERY=1 cargo run --bin tuff-cse-winfsctl
 
 `TUFF_CSE_WINFS_ALLOW_DEV_ENTERPRISE_RECOVERY=1` is required for the dev approval and deny commands.
 
-## Current Phase: P6B (Enterprise Provider Adapter Boundary)
+## P6B (Enterprise Provider Adapter Boundary)
 
 P6B adds an offline enterprise provider adapter boundary on top of P6A. It models provider policy, attestation summaries, and provider-gated recovery evaluation without connecting to live KMS/HSM, cloud KMS SDKs, PKCS#11, TPM APIs, or driver I/O.
 
@@ -164,6 +164,36 @@ cargo run --bin tuff-cse-winfsctl -- enterprise-provider import --policy example
 cargo run --bin tuff-cse-winfsctl -- enterprise-provider import-attestation --attestation examples/enterprise-provider-attestation.example.json
 cargo run --bin tuff-cse-winfsctl -- enterprise-provider status --enterprise-provider EP-001
 cargo run --bin tuff-cse-winfsctl -- enterprise-provider evaluate --enterprise-provider EP-001 --operation recover --volume D:
+```
+
+## Current Phase: P6C (Enterprise Provider Lifecycle Boundary)
+
+P6C adds an offline/imported lifecycle event, revocation, rotation, and attestation renewal boundary on top of P6B. It ensures that revoked, superseded, rotated, or expired enterprise providers fail-closed and cannot pass the recovery enforcer, using signed journals and metadata verification.
+
+### P6C Highlights
+- Implements `EnterpriseProviderLifecycleEvent`, `EnterpriseProviderRotationPlan`, `EnterpriseProviderRotationDecision`, and custom debug formats.
+- Integrates `EnterpriseProviderLifecycleEnforcer` in the validation sequence to verify provider generation, active lifecycle state, and canonical lifecycle hash consistency.
+- Enhances `tuff-cse-winfsctl` CLI with subcommands: `import-event`, `status`, `revoke`, `rotation-plan`, `rotate-complete`, and `renew-attestation`.
+- Prevents bypassed evaluations: revoked, superseded, rotated (old generation), or expired providers are strictly rejected.
+- Includes lifecycle metadata fields in the P4C signed canonical payload to detect any tampering with active generations or states.
+- Assures zero credentials, KMS/HSM secrets, or key material are persisted, logged, or exposed.
+
+### CLI Examples
+```powershell
+# Import activation event
+TUFF_CSE_WINFS_ALLOW_DEV_PROVIDER_LIFECYCLE=1 cargo run --bin tuff-cse-winfsctl -- enterprise-provider lifecycle import-event --event examples/enterprise-provider-lifecycle-event.example.json
+
+# Check lifecycle status
+TUFF_CSE_WINFS_ALLOW_DEV_PROVIDER_LIFECYCLE=1 cargo run --bin tuff-cse-winfsctl -- enterprise-provider lifecycle status --enterprise-provider EP-001
+
+# Create rotation plan
+TUFF_CSE_WINFS_ALLOW_DEV_PROVIDER_LIFECYCLE=1 cargo run --bin tuff-cse-winfsctl -- enterprise-provider lifecycle rotation-plan --enterprise-provider EP-001 --next-generation 2
+
+# Complete rotation
+TUFF_CSE_WINFS_ALLOW_DEV_PROVIDER_LIFECYCLE=1 cargo run --bin tuff-cse-winfsctl -- enterprise-provider lifecycle rotate-complete --rotation-plan PLAN-ROT-EP-001-1781984115
+
+# Revoke provider
+TUFF_CSE_WINFS_ALLOW_DEV_PROVIDER_LIFECYCLE=1 cargo run --bin tuff-cse-winfsctl -- enterprise-provider lifecycle revoke --enterprise-provider EP-001 --reason administrative-revocation
 ```
 
 ## Current Phase: P4A (Local Policy / Local Admin Approval Boundary)

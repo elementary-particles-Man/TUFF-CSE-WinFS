@@ -8,6 +8,11 @@ use crate::domain_recovery::{
 };
 use crate::enterprise_authority::EnterpriseAuthorityPolicy;
 use crate::enterprise_provider::{EnterpriseProviderAttestationSummary, EnterpriseProviderPolicy};
+use crate::enterprise_provider_lifecycle::{
+    EnterpriseProviderGeneration, EnterpriseProviderLifecycleEvent,
+    EnterpriseProviderLifecycleState, EnterpriseProviderRotationDecision,
+    EnterpriseProviderRotationPlan,
+};
 use crate::enterprise_quorum::EnterpriseQuorumPolicy;
 use crate::enterprise_recovery::{EnterpriseRecoveryDecision, EnterpriseRecoveryRequest};
 use crate::export_manifest::{ExportManifest, ExportPlan};
@@ -61,6 +66,9 @@ impl BindingStore {
             "META/offline-policy",
             "META/enterprise-authority",
             "META/enterprise-provider",
+            "META/enterprise-provider/lifecycle-events",
+            "META/enterprise-provider/rotation-plans",
+            "META/enterprise-provider/rotation-decisions",
             "META/enterprise-quorum",
             "KEYS/plans",
             "KEYS/export-plans",
@@ -1012,5 +1020,196 @@ impl BindingStore {
             self.save_enterprise_recovery_decision(&decision)?;
         }
         Ok(())
+    }
+
+    pub fn save_enterprise_provider_lifecycle_event(
+        &self,
+        event: &EnterpriseProviderLifecycleEvent,
+    ) -> Result<()> {
+        let path = self.root.join(format!(
+            "META/enterprise-provider/lifecycle-events/{}.json",
+            event.event_id.0
+        ));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, event)?;
+        Ok(())
+    }
+
+    pub fn load_enterprise_provider_lifecycle_event(
+        &self,
+        event_id: &str,
+    ) -> Result<Option<EnterpriseProviderLifecycleEvent>> {
+        let path = self.root.join(format!(
+            "META/enterprise-provider/lifecycle-events/{}.json",
+            event_id
+        ));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let event = serde_json::from_reader(file)?;
+        Ok(Some(event))
+    }
+
+    pub fn list_enterprise_provider_lifecycle_events(
+        &self,
+    ) -> Result<Vec<EnterpriseProviderLifecycleEvent>> {
+        let dir = self.root.join("META/enterprise-provider/lifecycle-events");
+        let mut events = Vec::new();
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            if entry.file_type()?.is_file() {
+                let file = File::open(entry.path())?;
+                let event = serde_json::from_reader(file)?;
+                events.push(event);
+            }
+        }
+        Ok(events)
+    }
+
+    pub fn save_enterprise_provider_rotation_plan(
+        &self,
+        plan: &EnterpriseProviderRotationPlan,
+    ) -> Result<()> {
+        let path = self.root.join(format!(
+            "META/enterprise-provider/rotation-plans/{}.json",
+            plan.plan_id.0
+        ));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, plan)?;
+        Ok(())
+    }
+
+    pub fn load_enterprise_provider_rotation_plan(
+        &self,
+        plan_id: &str,
+    ) -> Result<Option<EnterpriseProviderRotationPlan>> {
+        let path = self.root.join(format!(
+            "META/enterprise-provider/rotation-plans/{}.json",
+            plan_id
+        ));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let plan = serde_json::from_reader(file)?;
+        Ok(Some(plan))
+    }
+
+    pub fn list_enterprise_provider_rotation_plans(
+        &self,
+    ) -> Result<Vec<EnterpriseProviderRotationPlan>> {
+        let dir = self.root.join("META/enterprise-provider/rotation-plans");
+        let mut plans = Vec::new();
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            if entry.file_type()?.is_file() {
+                let file = File::open(entry.path())?;
+                let plan = serde_json::from_reader(file)?;
+                plans.push(plan);
+            }
+        }
+        Ok(plans)
+    }
+
+    pub fn save_enterprise_provider_rotation_decision(
+        &self,
+        decision: &EnterpriseProviderRotationDecision,
+    ) -> Result<()> {
+        let path = self.root.join(format!(
+            "META/enterprise-provider/rotation-decisions/{}.json",
+            decision.decision_id.0
+        ));
+        let file = File::create(&path)?;
+        serde_json::to_writer_pretty(file, decision)?;
+        Ok(())
+    }
+
+    pub fn load_enterprise_provider_rotation_decision(
+        &self,
+        decision_id: &str,
+    ) -> Result<Option<EnterpriseProviderRotationDecision>> {
+        let path = self.root.join(format!(
+            "META/enterprise-provider/rotation-decisions/{}.json",
+            decision_id
+        ));
+        if !path.exists() {
+            return Ok(None);
+        }
+        let file = File::open(&path)?;
+        let decision = serde_json::from_reader(file)?;
+        Ok(Some(decision))
+    }
+
+    pub fn list_enterprise_provider_rotation_decisions(
+        &self,
+    ) -> Result<Vec<EnterpriseProviderRotationDecision>> {
+        let dir = self
+            .root
+            .join("META/enterprise-provider/rotation-decisions");
+        let mut decisions = Vec::new();
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            if entry.file_type()?.is_file() {
+                let file = File::open(entry.path())?;
+                let decision = serde_json::from_reader(file)?;
+                decisions.push(decision);
+            }
+        }
+        Ok(decisions)
+    }
+
+    pub fn find_latest_provider_lifecycle_event(
+        &self,
+        provider_id: &str,
+    ) -> Result<Option<EnterpriseProviderLifecycleEvent>> {
+        let mut candidate: Option<EnterpriseProviderLifecycleEvent> = None;
+        for event in self.list_enterprise_provider_lifecycle_events()? {
+            if event.provider_id.0 == provider_id {
+                match &candidate {
+                    Some(existing) if existing.created_at >= event.created_at => {}
+                    _ => candidate = Some(event),
+                }
+            }
+        }
+        Ok(candidate)
+    }
+
+    pub fn find_latest_provider_lifecycle_state(
+        &self,
+        provider_id: &str,
+    ) -> Result<Option<EnterpriseProviderLifecycleState>> {
+        if let Some(event) = self.find_latest_provider_lifecycle_event(provider_id)? {
+            Ok(Some(event.state))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn find_active_provider_generation(
+        &self,
+        provider_id: &str,
+    ) -> Result<Option<EnterpriseProviderGeneration>> {
+        if let Some(event) = self.find_latest_provider_lifecycle_event(provider_id)? {
+            Ok(Some(event.generation))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn find_latest_rotation_plan(
+        &self,
+        provider_id: &str,
+    ) -> Result<Option<EnterpriseProviderRotationPlan>> {
+        let mut candidate: Option<EnterpriseProviderRotationPlan> = None;
+        for plan in self.list_enterprise_provider_rotation_plans()? {
+            if plan.provider_id.0 == provider_id {
+                match &candidate {
+                    Some(existing) if existing.created_at >= plan.created_at => {}
+                    _ => candidate = Some(plan),
+                }
+            }
+        }
+        Ok(candidate)
     }
 }

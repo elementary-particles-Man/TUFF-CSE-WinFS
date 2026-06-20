@@ -77,6 +77,7 @@ pub fn recover_store(store: &BindingStore, volume: &str) -> Result<RecoveryDecis
             signature_algorithm: None,
             signature: None,
             signed_at: None,
+            ..Default::default()
         };
         operation_journal::append_recovery_record(store.root_path(), &vol_hash, rec)?;
         return Ok(RecoveryDecision::MarkRecoveryRequired);
@@ -144,6 +145,7 @@ pub fn recover_store(store: &BindingStore, volume: &str) -> Result<RecoveryDecis
                 signature_algorithm: None,
                 signature: None,
                 signed_at: None,
+                ..Default::default()
             };
             operation_journal::append_recovery_record(store.root_path(), &vol_hash, rec)?;
 

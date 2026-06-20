@@ -49,6 +49,8 @@ pub struct EnterpriseProviderPolicy {
     pub capabilities: Vec<EnterpriseProviderCapability>,
     pub health: EnterpriseProviderHealth,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_generation: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub policy_hash: Option<EnterpriseProviderPolicyHash>,
     pub created_at: u64,
 }
@@ -61,6 +63,8 @@ pub struct EnterpriseProviderAttestationSummary {
     pub provider_kind: EnterpriseProviderKind,
     pub capabilities: Vec<EnterpriseProviderCapability>,
     pub health: EnterpriseProviderHealth,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_generation: Option<u64>,
     pub valid_from: u64,
     pub valid_until: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -70,6 +74,19 @@ pub struct EnterpriseProviderAttestationSummary {
     pub created_at: u64,
 }
 
+impl EnterpriseProviderHealth {
+    pub fn from_lifecycle_state(
+        state: crate::enterprise_provider_lifecycle::EnterpriseProviderLifecycleState,
+    ) -> Self {
+        match state {
+            crate::enterprise_provider_lifecycle::EnterpriseProviderLifecycleState::Revoked => {
+                Self::Revoked
+            }
+            _ => Self::OfflineImported,
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 struct EnterpriseProviderPolicyCanonical<'a> {
     policy_id: &'a EnterpriseProviderPolicyId,
@@ -77,6 +94,7 @@ struct EnterpriseProviderPolicyCanonical<'a> {
     provider_kind: &'a EnterpriseProviderKind,
     capabilities: &'a [EnterpriseProviderCapability],
     health: EnterpriseProviderHealth,
+    provider_generation: Option<u64>,
     created_at: u64,
 }
 
@@ -88,6 +106,7 @@ struct EnterpriseProviderAttestationCanonical<'a> {
     provider_kind: &'a EnterpriseProviderKind,
     capabilities: &'a [EnterpriseProviderCapability],
     health: EnterpriseProviderHealth,
+    provider_generation: Option<u64>,
     valid_from: u64,
     valid_until: u64,
     revoked_at: Option<u64>,
@@ -101,6 +120,7 @@ pub fn canonicalize_enterprise_provider_policy(policy: &EnterpriseProviderPolicy
         provider_kind: &policy.provider_kind,
         capabilities: &policy.capabilities,
         health: policy.health,
+        provider_generation: policy.provider_generation,
         created_at: policy.created_at,
     })
     .unwrap_or_default()
@@ -131,6 +151,7 @@ pub fn canonicalize_enterprise_provider_attestation(
         provider_kind: &attestation.provider_kind,
         capabilities: &attestation.capabilities,
         health: attestation.health,
+        provider_generation: attestation.provider_generation,
         valid_from: attestation.valid_from,
         valid_until: attestation.valid_until,
         revoked_at: attestation.revoked_at,

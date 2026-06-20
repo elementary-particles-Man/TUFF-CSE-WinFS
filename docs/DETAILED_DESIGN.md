@@ -345,9 +345,61 @@ Provider credential / API key / client secret / token / private key / KMS secret
 
 ---
 
-## 12. 開発・検証環境 (CI/CD)
+## 12. P6C Enterprise Provider Lifecycle Boundary
 
-### 10.1 P0.5 クロスプラットフォームCI
+P6Cは、P6Bで定義されたEnterprise Provider Adapter Boundaryの上に、provider lifecycle / revocation / rotation / attestation renewal boundaryを実装する。本フェーズにおいても、live KMS/HSM接続や鍵復元は行わず、offline/imported lifecycle eventとsigned journalによって、revoked/superseded/rotated/expired providerがenforcement gateを通過できないことを保証する。
+
+### 12.1 Data Model
+
+- `EnterpriseProviderLifecycleEventId`
+- `EnterpriseProviderGeneration`
+- `EnterpriseProviderLifecycleState` (`Active`, `PendingRotation`, `Superseded`, `Revoked`, `Expired`, `ReservedLiveRefreshRequired`)
+- `EnterpriseProviderLifecycleEventKind` (`ImportedActivation`, `ImportedRevocation`, `ImportedRotationPlan`, `ImportedRotationComplete`, `ImportedAttestationRenewal`, `ReservedLiveRefresh`)
+- `EnterpriseProviderRevocationReason` (`CompromisedReserved`, `PolicySuperseded`, `AuthorityRevoked`, `AttestationExpired`, `AdministrativeRevocation`, `ReservedLiveProviderFailure`)
+- `EnterpriseProviderLifecycleEvent`
+- `EnterpriseProviderRotationPlan`
+- `EnterpriseProviderRotationDecision`
+
+### 12.2 Enforcement Order
+
+P6Cにおける enforcer 順序は以下の通り定義される。
+
+| Step | Gate |
+| :--- | :--- |
+| 1 | Domain policy evaluate |
+| 2 | Offline snapshot verify |
+| 3 | DomainApprovalEnforcer |
+| 4 | DomainRecoveryEnforcer |
+| 5 | EnterpriseProviderLifecycleEnforcer (追加) |
+| 6 | EnterpriseProviderEnforcer |
+| 7 | EnterpriseRecoveryEnforcer |
+| 8 | P4B LocalApprovalEnforcer |
+| 9 | P3C manual confirmation token |
+| 10 | Existing operation path |
+
+### 12.3 Verification & Safety Rules
+
+1. **Active State Verification**: provider が Active 以外の状態（Revoked, Superseded, Expired等）である場合、enforcer は `Rejected` を返す。
+2. **Generation Match**: `OperationRequest` および `EnterpriseRecoveryDecision` の provider generation が、現在の最新 lifecycle event の active generation と一致しない場合、拒否する。
+3. **Rotation Gate**: Rotation Complete 前は新 generation は使用できず、旧 generation のみ通す。Rotation Complete 後は旧 generation の使用は拒否され、新 generation のみ通過を許可する。
+4. **No Secrets in Logs**: provider credential, KMS/HSM secret, API key, client secret, private key, token などの秘匿情報は、METAファイル・Journalレコード・stdout/stderr出力に一切含まれないことを保証する。
+
+### 12.4 CLI Subcommands
+
+- `enterprise-provider lifecycle import-event`
+- `enterprise-provider lifecycle status`
+- `enterprise-provider lifecycle revoke`
+- `enterprise-provider lifecycle rotation-plan`
+- `enterprise-provider lifecycle rotate-complete`
+- `enterprise-provider lifecycle renew-attestation`
+
+※ 開発用 lifecycle 操作には環境変数 `TUFF_CSE_WINFS_ALLOW_DEV_PROVIDER_LIFECYCLE=1` の指定を必須とする。
+
+---
+
+## 13. 開発・検証環境 (CI/CD)
+
+### 13.1 P0.5 クロスプラットフォームCI
 専用インストーラ骨格の安定性を維持するため、GitHub Actions による継続的インテグレーション（CI）を実施する。
 
 - **対象プラットフォーム:** Ubuntu, Windows
