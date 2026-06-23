@@ -45,3 +45,34 @@ pub mod uninstall;
 pub mod verify;
 pub mod volume;
 pub mod volume_state;
+
+pub const V1_RC_PHASE: &str = "P6Z";
+pub const V1_RC_BASE_COMMIT: &str = "d8c8f3b90ba9f57d12c498b4f8ace31c1420740a";
+pub const V1_RC_COMPLETED_PHASES: &[&str] = &[
+    "P1A", "P1B", "P1C", "P2A", "P2B", "P2C", "P3A", "P3B", "P3C", "P4A", "P4B", "P4C", "P5A",
+    "P5B", "P5C", "P6A", "P6B", "P6C",
+];
+pub const V1_RC_RESERVED_LIVE_INTEGRATIONS: &[&str] = &[
+    "live KMS",
+    "live HSM",
+    "Cloud KMS SDK",
+    "PKCS#11 live connection",
+    "key recovery",
+    "CSE encrypted I/O",
+    "TPM real API",
+    "driver I/O",
+];
+pub const V1_RC_FORBIDDEN_BOUNDARIES: &[&str] = &[
+    "ReFS",
+    "RAW",
+    "network",
+    "system",
+    "pagefile",
+    "crashdump",
+    "hibernation",
+    "EFI",
+    "MSR",
+    "Recovery",
+    "OEM",
+    "BitLocker conflict",
+];

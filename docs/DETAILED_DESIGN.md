@@ -395,6 +395,15 @@ P6Cにおける enforcer 順序は以下の通り定義される。
 
 ※ 開発用 lifecycle 操作には環境変数 `TUFF_CSE_WINFS_ALLOW_DEV_PROVIDER_LIFECYCLE=1` の指定を必須とする。
 
+### 12.5 P6Z Release Gate
+
+P6Z is the v1 RC stabilization line. It documents and verifies the completed boundary set without adding new runtime integrations.
+
+- `tuff-cse-winfsctl rc-status` reports the fixed boundary phase and build info.
+- Signed journal canonical payloads must retain the P4C, P5, and P6 metadata fields already introduced before RC.
+- Secret non-persistence remains in force for provider credentials, KMS/HSM secrets, basekeys, MK/TK/PK, raw principals, and raw provider material.
+- Live KMS/HSM, Cloud KMS, PKCS#11, key recovery, CSE encrypted I/O, TPM real API, and driver runtime I/O remain out of scope for v1 RC.
+
 ---
 
 ## 13. 開発・検証環境 (CI/CD)

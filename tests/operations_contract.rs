@@ -194,6 +194,18 @@ mod tests {
     }
 
     #[test]
+    fn test_v1_rc_constants_define_the_fixed_boundary() {
+        assert_eq!(tuff_cse_winfs::V1_RC_PHASE, "P6Z");
+        assert_eq!(
+            tuff_cse_winfs::V1_RC_COMPLETED_PHASES.first().copied(),
+            Some("P1A")
+        );
+        assert!(tuff_cse_winfs::V1_RC_COMPLETED_PHASES.contains(&"P6C"));
+        assert!(tuff_cse_winfs::V1_RC_RESERVED_LIVE_INTEGRATIONS.contains(&"live KMS"));
+        assert!(tuff_cse_winfs::V1_RC_FORBIDDEN_BOUNDARIES.contains(&"RAW"));
+    }
+
+    #[test]
     fn test_enterprise_authority_policy_serializes() {
         use tuff_cse_winfs::enterprise_authority::{
             EnterpriseAuthorityFingerprint, EnterpriseAuthorityPolicy,

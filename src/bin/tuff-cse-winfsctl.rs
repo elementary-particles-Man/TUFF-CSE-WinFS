@@ -53,6 +53,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Report the fixed v1 RC boundary state
+    #[command(name = "rc-status")]
+    RcStatus,
     /// Display the management status of the target volume
     Status {
         #[arg(short, long)]
@@ -2082,10 +2085,35 @@ fn handle_bind_plan_only(
     Ok(())
 }
 
+fn handle_rc_status() {
+    println!("TUFF-CSE-WinFS v1 RC status");
+    println!("v1 boundary phase: {}", tuff_cse_winfs::V1_RC_PHASE);
+    println!(
+        "main-independent build info: crate={} os={} arch={} base_commit={}",
+        env!("CARGO_PKG_VERSION"),
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        tuff_cse_winfs::V1_RC_BASE_COMMIT
+    );
+    println!(
+        "completed phases: {}",
+        tuff_cse_winfs::V1_RC_COMPLETED_PHASES.join(", ")
+    );
+    println!(
+        "reserved live integrations: {}",
+        tuff_cse_winfs::V1_RC_RESERVED_LIVE_INTEGRATIONS.join(", ")
+    );
+    println!(
+        "forbidden boundaries: {}",
+        tuff_cse_winfs::V1_RC_FORBIDDEN_BOUNDARIES.join(", ")
+    );
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
+        Commands::RcStatus => handle_rc_status(),
         Commands::Status {
             volume,
             policy,

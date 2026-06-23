@@ -1,0 +1,55 @@
+{
+  "release_id": "TUFF-CSE-WinFS-v1-RC",
+  "boundary_phase": "P6Z",
+  "completed_phases": [
+    "P1A",
+    "P1B",
+    "P1C",
+    "P2A",
+    "P2B",
+    "P2C",
+    "P3A",
+    "P3B",
+    "P3C",
+    "P4A",
+    "P4B",
+    "P4C",
+    "P5A",
+    "P5B",
+    "P5C",
+    "P6A",
+    "P6B",
+    "P6C"
+  ],
+  "release_gates": [
+    "cargo fmt --check",
+    "cargo test --all-targets",
+    "ubuntu-ci",
+    "windows-ci",
+    "install --dry-run",
+    "verify --policy",
+    "signed-journal-verify"
+  ],
+  "forbidden_boundaries": [
+    "ReFS",
+    "RAW",
+    "network",
+    "pagefile",
+    "crashdump",
+    "hibernation",
+    "EFI",
+    "MSR",
+    "Recovery",
+    "OEM",
+    "BitLocker conflict"
+  ],
+  "live_integrations": {
+    "kms": false,
+    "hsm": false,
+    "cloud_kms": false,
+    "pkcs11": false,
+    "tpm_api": false,
+    "driver_io": false
+  },
+  "secret_persistence": false
+}

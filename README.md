@@ -196,6 +196,23 @@ TUFF_CSE_WINFS_ALLOW_DEV_PROVIDER_LIFECYCLE=1 cargo run --bin tuff-cse-winfsctl 
 TUFF_CSE_WINFS_ALLOW_DEV_PROVIDER_LIFECYCLE=1 cargo run --bin tuff-cse-winfsctl -- enterprise-provider lifecycle revoke --enterprise-provider EP-001 --reason administrative-revocation
 ```
 
+## Current Phase: P6Z (v1 RC Release Gate)
+
+P6Z freezes the v1 RC boundary at P6C. It does not add live KMS/HSM, Cloud KMS, PKCS#11, key recovery, CSE encrypted I/O, TPM real API, or driver runtime I/O.
+
+### RC Status
+```powershell
+cargo run --bin tuff-cse-winfsctl -- rc-status
+```
+
+### RC Gate Summary
+- `cargo fmt --check`
+- `cargo test --all-targets`
+- Ubuntu and Windows CI
+- installer dry-run and verify
+- signed journal verification
+- secret and forbidden-boundary grep checks
+
 ## Current Phase: P4A (Local Policy / Local Admin Approval Boundary)
 
 The project is currently in the **P4A** phase. This stage establishes the model and structural boundary for local administrator approvals.
