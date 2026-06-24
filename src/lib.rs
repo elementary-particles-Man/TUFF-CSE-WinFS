@@ -76,3 +76,19 @@ pub const V1_RC_FORBIDDEN_BOUNDARIES: &[&str] = &[
     "OEM",
     "BitLocker conflict",
 ];
+pub const P7A_PUBLIC_INSTALLER_PHASE: &str = "P7A";
+pub const P7A_PUBLIC_INSTALLER_BOUNDARY: &str = "Public Windows Installer Package Boundary";
+pub const P7A_PUBLIC_INSTALLER_ARTIFACTS: &[&str] = &[
+    "portable zip artifact",
+    "WiX scaffold",
+    "README-FIRST",
+    "manifest",
+];
+pub const P7A_PUBLIC_INSTALLER_RESERVED_ACTIONS: &[&str] = &[
+    "driver install",
+    "service install",
+    "code signing",
+    "CSE crypto I/O",
+    "TPM live API",
+    "KMS/HSM live integration",
+];

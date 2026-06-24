@@ -404,6 +404,15 @@ P6Z is the v1 RC stabilization line. It documents and verifies the completed bou
 - Secret non-persistence remains in force for provider credentials, KMS/HSM secrets, basekeys, MK/TK/PK, raw principals, and raw provider material.
 - Live KMS/HSM, Cloud KMS, PKCS#11, key recovery, CSE encrypted I/O, TPM real API, and driver runtime I/O remain out of scope for v1 RC.
 
+### 12.6 P7A Public Windows Installer Package Boundary
+
+P7A packages the v1 RC into a public Windows installer artifact boundary. It stages the release binaries, publishes a portable zip artifact when WiX tooling is unavailable, and preserves the no-live-install boundary.
+
+- `installer/windows/build-installer.ps1` stages `TuffCseWinFsSetup.exe`, `tuff-cse-winfsctl.exe`, and the public readme/license/manifest files.
+- `installer/windows/TUFF-CSE-WinFS.wxs` is a scaffold only and does not imply live install execution in P7A.
+- `tuff-cse-winfsctl rc-status` reports the P7A installer readiness line alongside the v1 RC fixed point.
+- Public installer packaging remains separate from live driver install, service install, signing, KMS/HSM, TPM live API, and CSE crypto I/O.
+
 ---
 
 ## 13. 開発・検証環境 (CI/CD)

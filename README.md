@@ -213,6 +213,21 @@ cargo run --bin tuff-cse-winfsctl -- rc-status
 - signed journal verification
 - secret and forbidden-boundary grep checks
 
+## Current Phase: P7A (Public Windows Installer Package Boundary)
+
+P7A packages the v1 RC into a public Windows release artifact boundary. It stages the release binaries, keeps a WiX scaffold in-tree, and publishes a portable zip artifact when WiX tooling is unavailable.
+
+### Public Installer Entry Points
+- [`docs/PUBLIC_WINDOWS_INSTALLER.md`](docs/PUBLIC_WINDOWS_INSTALLER.md)
+- [`docs/PUBLIC_RELEASE_CHECKLIST.md`](docs/PUBLIC_RELEASE_CHECKLIST.md)
+- [`installer/windows/README.md`](installer/windows/README.md)
+- [`installer/windows/build-installer.ps1`](installer/windows/build-installer.ps1)
+
+### Public Installer Boundary
+- Package only the release binaries and public docs.
+- Keep live driver install, service install, signing, KMS/HSM/CloudKMS/PKCS#11, TPM live API, and CSE crypto I/O out of scope.
+- Confirm `rc-status`, install dry-run, and verify before packaging.
+
 ## Current Phase: P4A (Local Policy / Local Admin Approval Boundary)
 
 The project is currently in the **P4A** phase. This stage establishes the model and structural boundary for local administrator approvals.
