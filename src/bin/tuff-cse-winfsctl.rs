@@ -2107,6 +2107,19 @@ fn handle_rc_status() {
         "forbidden boundaries: {}",
         tuff_cse_winfs::V1_RC_FORBIDDEN_BOUNDARIES.join(", ")
     );
+    println!(
+        "installer readiness: {} / {}",
+        tuff_cse_winfs::P7A_PUBLIC_INSTALLER_PHASE,
+        tuff_cse_winfs::P7A_PUBLIC_INSTALLER_BOUNDARY
+    );
+    println!(
+        "installer artifact boundary: {}",
+        tuff_cse_winfs::P7A_PUBLIC_INSTALLER_ARTIFACTS.join(", ")
+    );
+    println!(
+        "installer reserved actions: {}",
+        tuff_cse_winfs::P7A_PUBLIC_INSTALLER_RESERVED_ACTIONS.join(", ")
+    );
 }
 
 fn main() -> Result<()> {

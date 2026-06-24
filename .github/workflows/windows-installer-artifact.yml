@@ -1,0 +1,72 @@
+name: Windows Installer Artifact
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Show toolchain
+        shell: pwsh
+        run: |
+          rustc --version
+          cargo --version
+
+      - name: Check formatting
+        shell: pwsh
+        run: cargo fmt --check
+
+      - name: Test
+        shell: pwsh
+        run: cargo test --all-targets
+
+      - name: Build release binaries
+        shell: pwsh
+        run: cargo build --release --bins
+
+      - name: RC status
+        shell: pwsh
+        run: cargo run --bin tuff-cse-winfsctl -- rc-status
+
+      - name: Install dry-run
+        shell: pwsh
+        run: cargo run --bin TuffCseWinFsSetup -- install --policy examples/cse-install-policy.example.json --dry-run
+
+      - name: Verify policy
+        shell: pwsh
+        run: cargo run --bin TuffCseWinFsSetup -- verify --policy examples/cse-install-policy.example.json
+
+      - name: Build public installer artifact
+        shell: pwsh
+        run: |
+          .\installer\windows\build-installer.ps1 -RepoRoot $env:GITHUB_WORKSPACE -OutputDir "$env:GITHUB_WORKSPACE\artifacts\windows-installer"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer-artifact
+          path: artifacts/windows-installer/*.zip
+          if-no-files-found: error
