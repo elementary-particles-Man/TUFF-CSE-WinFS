@@ -33,3 +33,4 @@ TUFF-CSE-WinFS P7A defines the public Windows installer package boundary for the
 
 The public artifact is a package boundary only. It is safe to share because it contains no runtime secrets and no installation side effects.
 
+For the P7B public release bundle, this package is wrapped with a manifest, SHA256 checksum report, and draft release notes. The bundle still does not publish a GitHub Release.

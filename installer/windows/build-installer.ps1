@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$RepoRoot = "",
-    [string]$OutputDir = ""
+    [string]$OutputDir = "",
+    [string]$ArtifactLabel = "public-windows-installer"
 )
 
 $ErrorActionPreference = "Stop"
@@ -64,7 +65,7 @@ if (-not $GitSha) {
     $GitSha = "unknown"
 }
 
-$ArtifactZip = Join-Path $OutputDir "TUFF-CSE-WinFS-$GitSha-public-windows-installer.zip"
+$ArtifactZip = Join-Path $OutputDir "TUFF-CSE-WinFS-$GitSha-$ArtifactLabel.zip"
 if (Test-Path $ArtifactZip) {
     Remove-Item $ArtifactZip -Force
 }

@@ -15,10 +15,10 @@
 - The package may be zipped for distribution when WiX tooling is unavailable.
 - The package does not perform driver installation, signing, or service installation.
 - The package does not add live KMS, HSM, CloudKMS, PKCS#11, TPM, or CSE I/O integration.
+- The outer P7B release bundle adds the release manifest, checksum report, and draft release notes.
 
 ## Verification Notes
 
 - Confirm `tuff-cse-winfsctl rc-status` before packaging.
 - Confirm `TuffCseWinFsSetup -- install --dry-run` before packaging.
 - Confirm `TuffCseWinFsSetup -- verify --policy <policy>` before packaging.
-

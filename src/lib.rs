@@ -92,3 +92,21 @@ pub const P7A_PUBLIC_INSTALLER_RESERVED_ACTIONS: &[&str] = &[
     "TPM live API",
     "KMS/HSM live integration",
 ];
+pub const P7B_PUBLIC_RELEASE_PHASE: &str = "P7B";
+pub const P7B_PUBLIC_RELEASE_BOUNDARY: &str =
+    "Public Release Artifact Checksum Draft Release Boundary";
+pub const P7B_PUBLIC_RELEASE_ARTIFACTS: &[&str] = &[
+    "portable zip release artifact",
+    "release manifest",
+    "SHA256 checksum report",
+    "draft release notes",
+];
+pub const P7B_PUBLIC_RELEASE_RESERVED_ACTIONS: &[&str] = &[
+    "GitHub Release publish",
+    "driver install",
+    "service install",
+    "code signing",
+    "CSE crypto I/O",
+    "TPM live API",
+    "KMS/HSM live integration",
+];

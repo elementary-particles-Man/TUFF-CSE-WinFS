@@ -9,4 +9,5 @@ Before running anything:
 5. Use this package only as a public release artifact boundary.
 
 This package does not perform live driver installation, service installation, signing, KMS/HSM/CloudKMS/PKCS#11 integration, TPM live API use, or CSE crypto I/O.
-
+The outer P7B release bundle adds the SHA256 checksum report and release manifest; it still does not publish a GitHub Release.
+That outer bundle is the public release artifact boundary for P7B.
