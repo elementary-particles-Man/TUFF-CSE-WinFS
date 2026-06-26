@@ -141,7 +141,7 @@ $ChecksumLines = @(
     "# Source commit: $SourceCommit",
     "# Build workflow: $BuildWorkflow",
     "",
-    ("SHA256 ({0}) = {1}" -f $PortableZipRecord.artifact_name, $PortableZipRecord.sha256),
+    ("SHA256 ({0}) = {1}" -f $PortableZipRecord.artifact_name, $PortableZipRecord.sha256)
 )
 
 if ($MsiRecord) {
