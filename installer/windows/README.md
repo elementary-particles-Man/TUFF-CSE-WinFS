@@ -8,6 +8,8 @@ This directory holds the public packaging boundary for TUFF-CSE-WinFS v1 RC.
 - Provide a portable zip artifact for public release.
 - Keep a WiX scaffold in-tree for future MSI packaging work.
 - Preserve the RC fixed point exposed by `tuff-cse-winfsctl rc-status`.
+- The public release bundle wraps this package with a manifest and SHA256 checksum report in P7B.
+- The outer P7B layer is the public release artifact boundary around this package.
 
 ## Non-Goals
 
@@ -28,4 +30,3 @@ This directory holds the public packaging boundary for TUFF-CSE-WinFS v1 RC.
 ## Build Entry Point
 
 Run `installer/windows/build-installer.ps1` from a Windows shell after the release binaries have been built.
-

@@ -1,0 +1,5 @@
+# TUFF-CSE-WinFS v1 RC public release checksum template
+# Generate SHA256 values with Get-FileHash -Algorithm SHA256
+
+SHA256 (TUFF-CSE-WinFS-<source_commit>-public-windows-installer.zip) = <sha256>
+SHA256 (V1_RC_RELEASE_NOTES.md) = <sha256>

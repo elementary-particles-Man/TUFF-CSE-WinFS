@@ -2120,6 +2120,19 @@ fn handle_rc_status() {
         "installer reserved actions: {}",
         tuff_cse_winfs::P7A_PUBLIC_INSTALLER_RESERVED_ACTIONS.join(", ")
     );
+    println!(
+        "public release readiness: {} / {}",
+        tuff_cse_winfs::P7B_PUBLIC_RELEASE_PHASE,
+        tuff_cse_winfs::P7B_PUBLIC_RELEASE_BOUNDARY
+    );
+    println!(
+        "public release artifacts: {}",
+        tuff_cse_winfs::P7B_PUBLIC_RELEASE_ARTIFACTS.join(", ")
+    );
+    println!(
+        "public release reserved actions: {}",
+        tuff_cse_winfs::P7B_PUBLIC_RELEASE_RESERVED_ACTIONS.join(", ")
+    );
 }
 
 fn main() -> Result<()> {

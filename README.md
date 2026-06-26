@@ -228,6 +228,23 @@ P7A packages the v1 RC into a public Windows release artifact boundary. It stage
 - Keep live driver install, service install, signing, KMS/HSM/CloudKMS/PKCS#11, TPM live API, and CSE crypto I/O out of scope.
 - Confirm `rc-status`, install dry-run, and verify before packaging.
 
+## Current Phase: P7B (Public Release Artifact Checksum / Draft Release Boundary)
+
+P7B wraps the P7A installer package in a public release artifact bundle. It adds the release manifest, SHA256 checksums, and draft release notes without publishing a GitHub Release.
+
+### Public Release Entry Points
+- [`docs/PUBLIC_RELEASE_ARTIFACTS.md`](docs/PUBLIC_RELEASE_ARTIFACTS.md)
+- [`docs/PUBLIC_RELEASE_NOTES_TEMPLATE.md`](docs/PUBLIC_RELEASE_NOTES_TEMPLATE.md)
+- [`release/README.md`](release/README.md)
+- [`release/build-release-manifest.ps1`](release/build-release-manifest.ps1)
+- [`release/verify-release-artifacts.ps1`](release/verify-release-artifacts.ps1)
+
+### Public Release Boundary
+- Package the P7A portable zip into a release bundle.
+- Generate the release manifest and SHA256 checksum report.
+- Keep GitHub Release publication deferred; draft release notes only.
+- Keep live driver install, service install, signing, KMS/HSM/CloudKMS/PKCS#11, TPM live API, and CSE crypto I/O out of scope.
+
 ## Current Phase: P4A (Local Policy / Local Admin Approval Boundary)
 
 The project is currently in the **P4A** phase. This stage establishes the model and structural boundary for local administrator approvals.

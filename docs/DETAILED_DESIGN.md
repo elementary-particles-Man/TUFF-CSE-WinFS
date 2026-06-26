@@ -413,6 +413,16 @@ P7A packages the v1 RC into a public Windows installer artifact boundary. It sta
 - `tuff-cse-winfsctl rc-status` reports the P7A installer readiness line alongside the v1 RC fixed point.
 - Public installer packaging remains separate from live driver install, service install, signing, KMS/HSM, TPM live API, and CSE crypto I/O.
 
+### 12.7 P7B Public Release Artifact Checksum / Draft Release Boundary
+
+P7B wraps the P7A public installer package in a draft release artifact boundary. It adds release notes, a release manifest, and SHA256 checksums without publishing a GitHub Release.
+
+- `release/build-release-manifest.ps1` copies the portable installer zip into a release bundle, generates the release manifest, and writes the checksum report with `Get-FileHash -Algorithm SHA256`.
+- `release/verify-release-artifacts.ps1` verifies the manifest entries, file sizes, and SHA256 values against the bundle.
+- `docs/PUBLIC_RELEASE_ARTIFACTS.md` describes the public release bundle layout and verification order.
+- `docs/PUBLIC_RELEASE_NOTES_TEMPLATE.md` preserves the draft release note structure for future RC handoff.
+- P7B keeps live driver install, `pnputil`, signing, service install, live KMS/HSM/CloudKMS/PKCS#11, TPM live API, and CSE crypto I/O out of scope.
+
 ---
 
 ## 13. 開発・検証環境 (CI/CD)
@@ -428,3 +438,15 @@ P7A packages the v1 RC into a public Windows installer artifact boundary. It sta
     - ポリシー整合性検証 (`verify --policy`)
 
 *※注意: カーネルドライバのビルド・署名、および特権が必要なハードウェア操作は本CIフェーズの対象外である。*
+
+### 13.2 P7B Public Release Artifact Workflow
+
+P7B adds a Windows workflow that builds the public release bundle and validates the manifest/checksum pairing before upload.
+
+- Build the release binaries.
+- Run the RC fixed-point commands.
+- Build the P7A portable installer artifact.
+- Generate the P7B release manifest and SHA256 checksum report.
+- Verify the public release bundle.
+- Upload the bundle as a workflow artifact.
+- Do not publish a GitHub Release.

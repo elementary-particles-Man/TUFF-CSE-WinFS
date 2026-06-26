@@ -1,0 +1,47 @@
+{
+  "schema_version": "2026-06-p7b",
+  "release_line": "TUFF-CSE-WinFS v1 RC",
+  "boundary_status": "draft-release-boundary",
+  "artifacts": [
+    {
+      "artifact_name": "TUFF-CSE-WinFS-<source_commit>-public-windows-installer.zip",
+      "artifact_kind": "portable_zip",
+      "source_commit": "<source_commit>",
+      "build_workflow": "public-release-artifact",
+      "sha256": "<sha256>",
+      "size_bytes": 0,
+      "generated_at": "<generated_at>",
+      "boundary_status": "draft-release-boundary"
+    },
+    {
+      "artifact_name": "TUFF-CSE-WinFS-<source_commit>-public-windows-installer.msi",
+      "artifact_kind": "wix_msi_candidate",
+      "source_commit": "<source_commit>",
+      "build_workflow": "public-release-artifact",
+      "sha256": "<sha256>",
+      "size_bytes": 0,
+      "generated_at": "<generated_at>",
+      "boundary_status": "draft-release-boundary"
+    },
+    {
+      "artifact_name": "V1_RC_RELEASE_NOTES.md",
+      "artifact_kind": "release_notes",
+      "source_commit": "<source_commit>",
+      "build_workflow": "public-release-artifact",
+      "sha256": "<sha256>",
+      "size_bytes": 0,
+      "generated_at": "<generated_at>",
+      "boundary_status": "draft-release-boundary"
+    },
+    {
+      "artifact_name": "V1_RC_CHECKSUMS.sha256",
+      "artifact_kind": "checksums",
+      "source_commit": "<source_commit>",
+      "build_workflow": "public-release-artifact",
+      "sha256": "<sha256>",
+      "size_bytes": 0,
+      "generated_at": "<generated_at>",
+      "boundary_status": "draft-release-boundary"
+    }
+  ]
+}
