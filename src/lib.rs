@@ -110,3 +110,22 @@ pub const P7B_PUBLIC_RELEASE_RESERVED_ACTIONS: &[&str] = &[
     "TPM live API",
     "KMS/HSM live integration",
 ];
+pub const P7C_DRAFT_RELEASE_PHASE: &str = "P7C";
+pub const P7C_DRAFT_RELEASE_BOUNDARY: &str = "RC Tag and Draft GitHub Release Asset Boundary";
+pub const P7C_DRAFT_RELEASE_ASSETS: &[&str] = &[
+    "public windows installer zip",
+    "release manifest",
+    "SHA256 checksum report",
+    "draft release notes",
+];
+pub const P7C_DRAFT_RELEASE_RESERVED_ACTIONS: &[&str] = &[
+    "GitHub Release publish",
+    "tag overwrite",
+    "force tag",
+    "driver install",
+    "service install",
+    "code signing",
+    "CSE crypto I/O",
+    "TPM live API",
+    "KMS/HSM live integration",
+];

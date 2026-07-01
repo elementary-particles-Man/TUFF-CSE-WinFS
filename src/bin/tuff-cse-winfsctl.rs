@@ -2133,6 +2133,19 @@ fn handle_rc_status() {
         "public release reserved actions: {}",
         tuff_cse_winfs::P7B_PUBLIC_RELEASE_RESERVED_ACTIONS.join(", ")
     );
+    println!(
+        "draft release readiness: {} / {}",
+        tuff_cse_winfs::P7C_DRAFT_RELEASE_PHASE,
+        tuff_cse_winfs::P7C_DRAFT_RELEASE_BOUNDARY
+    );
+    println!(
+        "draft release assets: {}",
+        tuff_cse_winfs::P7C_DRAFT_RELEASE_ASSETS.join(", ")
+    );
+    println!(
+        "draft release reserved actions: {}",
+        tuff_cse_winfs::P7C_DRAFT_RELEASE_RESERVED_ACTIONS.join(", ")
+    );
 }
 
 fn main() -> Result<()> {

@@ -5,7 +5,7 @@ param(
     [string]$OutputRoot = "",
     [string]$SourceCommit = "",
     [string]$BuildWorkflow = "public-release-artifact",
-    [string]$BoundaryStatus = "draft-release-boundary"
+    [string]$BoundaryStatus = "rc-draft-release-boundary"
 )
 
 $ErrorActionPreference = "Stop"
@@ -152,6 +152,31 @@ $ChecksumLines += @(
     ("SHA256 (V1_RC_RELEASE_NOTES.md) = {0}" -f $ReleaseNotesRecord.sha256)
 )
 
+$ArtifactRecords += $ReleaseNotesRecord
+
+$Manifest = [pscustomobject]@{
+    schema_version  = "2026-07-p7c"
+    release_line    = "TUFF-CSE-WinFS v1 RC"
+    boundary_status = $BoundaryStatus
+    artifacts       = $ArtifactRecords
+}
+
+$ManifestTarget = Join-Path $OutputRoot "V1_RC_ARTIFACT_MANIFEST.json"
+$Manifest | ConvertTo-Json -Depth 6 | Set-Content -Path $ManifestTarget -Encoding utf8
+
+$ManifestRecord = New-ArtifactRecord `
+    -ArtifactName "V1_RC_ARTIFACT_MANIFEST.json" `
+    -ArtifactKind "artifact_manifest" `
+    -ArtifactPath $ManifestTarget `
+    -SourceCommit $SourceCommit `
+    -BuildWorkflow $BuildWorkflow `
+    -GeneratedAt $GeneratedAt `
+    -BoundaryStatus $BoundaryStatus
+
+$ChecksumLines += @(
+    ("SHA256 (V1_RC_ARTIFACT_MANIFEST.json) = {0}" -f $ManifestRecord.sha256)
+)
+
 $ChecksumsTarget = Join-Path $OutputRoot "V1_RC_CHECKSUMS.sha256"
 Set-Content -Path $ChecksumsTarget -Value $ChecksumLines -Encoding utf8
 
@@ -164,18 +189,7 @@ $ChecksumsRecord = New-ArtifactRecord `
     -GeneratedAt $GeneratedAt `
     -BoundaryStatus $BoundaryStatus
 
-$ArtifactRecords += $ReleaseNotesRecord
 $ArtifactRecords += $ChecksumsRecord
-
-$Manifest = [pscustomobject]@{
-    schema_version = "2026-06-p7b"
-    release_line   = "TUFF-CSE-WinFS v1 RC"
-    boundary_status = $BoundaryStatus
-    artifacts      = $ArtifactRecords
-}
-
-$ManifestTarget = Join-Path $OutputRoot "V1_RC_ARTIFACT_MANIFEST.json"
-$Manifest | ConvertTo-Json -Depth 6 | Set-Content -Path $ManifestTarget -Encoding utf8
 
 Write-Host "Public release artifact bundle created:"
 Write-Host $OutputRoot
