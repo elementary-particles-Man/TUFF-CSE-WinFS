@@ -31,6 +31,10 @@ The public release bundle is built from the installer artifact and the draft rel
 
 The bundle supports draft release staging only. It does not publish a GitHub Release and it does not add live installation, signing, KMS/HSM, TPM live API, or CSE crypto I/O.
 
+## P7C Draft Release Asset Boundary
+
+P7C connects the RC tag candidate to a draft GitHub Release asset boundary. It uses the verified public release bundle, attaches only the public installer zip, manifest, checksum report, and release notes, and keeps publish disabled.
+
 ### Deferred After v1 RC
 
 - Live driver install

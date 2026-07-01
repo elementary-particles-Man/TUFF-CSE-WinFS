@@ -1,0 +1,39 @@
+{
+  "schema_version": "2026-07-p7c",
+  "release_line": "TUFF-CSE-WinFS v1 RC",
+  "tag_name": "v1.0.0-rc1",
+  "target_commitish": "<p7c-main-head>",
+  "release_name": "TUFF-CSE-WinFS v1.0.0-rc1 draft release",
+  "draft": true,
+  "prerelease": true,
+  "publish": false,
+  "artifact_manifest": "V1_RC_ARTIFACT_MANIFEST.json",
+  "checksums": "V1_RC_CHECKSUMS.sha256",
+  "release_notes": "V1_RC_RELEASE_NOTES.md",
+  "assets": [
+    {
+      "kind": "portable_zip",
+      "name": "TUFF-CSE-WinFS-<source_commit>-public-windows-installer.zip",
+      "path": "TUFF-CSE-WinFS-<source_commit>-public-windows-installer.zip",
+      "label": "public windows installer zip"
+    },
+    {
+      "kind": "artifact_manifest",
+      "name": "V1_RC_ARTIFACT_MANIFEST.json",
+      "path": "V1_RC_ARTIFACT_MANIFEST.json",
+      "label": "release manifest"
+    },
+    {
+      "kind": "checksums",
+      "name": "V1_RC_CHECKSUMS.sha256",
+      "path": "V1_RC_CHECKSUMS.sha256",
+      "label": "checksum report"
+    },
+    {
+      "kind": "release_notes",
+      "name": "V1_RC_RELEASE_NOTES.md",
+      "path": "V1_RC_RELEASE_NOTES.md",
+      "label": "draft release notes"
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 {
-  "schema_version": "2026-06-p7b",
+  "schema_version": "2026-07-p7c",
   "release_line": "TUFF-CSE-WinFS v1 RC",
-  "boundary_status": "draft-release-boundary",
+  "boundary_status": "rc-draft-release-boundary",
   "artifacts": [
     {
       "artifact_name": "TUFF-CSE-WinFS-<source_commit>-public-windows-installer.zip",
@@ -11,7 +11,7 @@
       "sha256": "<sha256>",
       "size_bytes": 0,
       "generated_at": "<generated_at>",
-      "boundary_status": "draft-release-boundary"
+      "boundary_status": "rc-draft-release-boundary"
     },
     {
       "artifact_name": "TUFF-CSE-WinFS-<source_commit>-public-windows-installer.msi",
@@ -21,7 +21,7 @@
       "sha256": "<sha256>",
       "size_bytes": 0,
       "generated_at": "<generated_at>",
-      "boundary_status": "draft-release-boundary"
+      "boundary_status": "rc-draft-release-boundary"
     },
     {
       "artifact_name": "V1_RC_RELEASE_NOTES.md",
@@ -31,7 +31,7 @@
       "sha256": "<sha256>",
       "size_bytes": 0,
       "generated_at": "<generated_at>",
-      "boundary_status": "draft-release-boundary"
+      "boundary_status": "rc-draft-release-boundary"
     },
     {
       "artifact_name": "V1_RC_CHECKSUMS.sha256",
@@ -41,7 +41,7 @@
       "sha256": "<sha256>",
       "size_bytes": 0,
       "generated_at": "<generated_at>",
-      "boundary_status": "draft-release-boundary"
+      "boundary_status": "rc-draft-release-boundary"
     }
   ]
 }

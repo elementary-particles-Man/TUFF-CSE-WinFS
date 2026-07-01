@@ -45,6 +45,14 @@ if (-not $ManifestData.artifacts) {
 $AllowedKinds = @("portable_zip", "wix_msi_candidate", "checksums", "release_notes")
 $ChecksumMap = Parse-ChecksumFile -Path $ChecksumsPath
 
+if (-not $ChecksumMap.ContainsKey((Split-Path -Leaf $ManifestPath))) {
+    throw "Checksum entry missing for release manifest."
+}
+
+if ($ChecksumMap[(Split-Path -Leaf $ManifestPath)] -ne (Get-Sha256Hex $ManifestPath)) {
+    throw "Checksum mismatch for release manifest."
+}
+
 foreach ($artifact in $ManifestData.artifacts) {
     foreach ($field in @("artifact_name", "artifact_kind", "source_commit", "build_workflow", "sha256", "size_bytes", "generated_at", "boundary_status")) {
         if ($artifact.PSObject.Properties.Name -notcontains $field) {
