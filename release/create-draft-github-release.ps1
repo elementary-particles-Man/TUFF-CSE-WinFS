@@ -16,6 +16,19 @@ function Resolve-AbsolutePath {
     return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
 }
 
+function Resolve-InputPath {
+    param(
+        [string]$BaseDir,
+        [string]$Path
+    )
+
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return Resolve-AbsolutePath $Path
+    }
+
+    return Resolve-AbsolutePath (Join-Path $BaseDir $Path)
+}
+
 function Invoke-Git {
     param([string[]]$Args)
 
@@ -43,7 +56,7 @@ $Input = Get-Content -Path $ResolvedInputPath -Raw | ConvertFrom-Json
 $TagName = $Input.tag_name
 $TargetCommitish = $Input.target_commitish
 $ReleaseName = $Input.release_name
-$ResolvedReleaseNotes = Resolve-AbsolutePath (Join-Path $InputDir $Input.release_notes)
+$ResolvedReleaseNotes = Resolve-InputPath -BaseDir $InputDir -Path $Input.release_notes
 
 Invoke-Git @("show-ref", "--tags", "--verify", "--quiet", "refs/tags/$TagName")
 if ($LASTEXITCODE -ne 0) {
@@ -65,7 +78,7 @@ if ($ReleaseExists) {
 
 $Assets = @()
 foreach ($asset in $Input.assets) {
-    $assetPath = Resolve-AbsolutePath (Join-Path $InputDir $asset.path)
+    $assetPath = Resolve-InputPath -BaseDir $InputDir -Path $asset.path
     if ($asset.kind -eq "checksums" -or $asset.kind -eq "artifact_manifest" -or $asset.kind -eq "release_notes" -or $asset.kind -eq "portable_zip") {
         $Assets += $assetPath
     }

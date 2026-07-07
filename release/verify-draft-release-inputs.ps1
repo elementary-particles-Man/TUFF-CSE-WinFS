@@ -16,6 +16,19 @@ function Resolve-AbsolutePath {
     return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
 }
 
+function Resolve-InputPath {
+    param(
+        [string]$BaseDir,
+        [string]$Path
+    )
+
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return Resolve-AbsolutePath $Path
+    }
+
+    return Resolve-AbsolutePath (Join-Path $BaseDir $Path)
+}
+
 function Get-Sha256Hex {
     param([string]$Path)
 
@@ -61,9 +74,9 @@ $HeadCommit = (git rev-parse HEAD).Trim()
 $ResolvedTargetCommit = (git rev-parse --verify "$($Input.target_commitish)^{commit}").Trim()
 Assert-True ($ResolvedTargetCommit -eq $HeadCommit) "target_commitish must match the current HEAD commit."
 
-$ResolvedManifest = Resolve-AbsolutePath (Join-Path $InputDir $Input.artifact_manifest)
-$ResolvedChecksums = Resolve-AbsolutePath (Join-Path $InputDir $Input.checksums)
-$ResolvedReleaseNotes = Resolve-AbsolutePath (Join-Path $InputDir $Input.release_notes)
+$ResolvedManifest = Resolve-InputPath -BaseDir $InputDir -Path $Input.artifact_manifest
+$ResolvedChecksums = Resolve-InputPath -BaseDir $InputDir -Path $Input.checksums
+$ResolvedReleaseNotes = Resolve-InputPath -BaseDir $InputDir -Path $Input.release_notes
 
 foreach ($path in @($ResolvedManifest, $ResolvedChecksums, $ResolvedReleaseNotes)) {
     Assert-True (Test-Path $path) "Missing required release file: $path"
@@ -97,7 +110,7 @@ foreach ($asset in $Input.assets) {
     Assert-True ($AllowedKinds -contains $asset.kind) "Unsupported asset kind: $($asset.kind)"
     Assert-True (-not [string]::IsNullOrWhiteSpace($asset.name)) "Missing asset name."
 
-    $assetPath = Resolve-AbsolutePath (Join-Path $InputDir $asset.path)
+    $assetPath = Resolve-InputPath -BaseDir $InputDir -Path $asset.path
     Assert-True (Test-Path $assetPath) "Missing asset file: $assetPath"
 
     if ($asset.kind -eq "checksums") {
