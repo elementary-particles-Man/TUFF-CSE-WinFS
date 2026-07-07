@@ -58,7 +58,7 @@ $TargetCommitish = $Input.target_commitish
 $ReleaseName = $Input.release_name
 $ResolvedReleaseNotes = Resolve-InputPath -BaseDir $InputDir -Path $Input.release_notes
 
-Invoke-Git @("show-ref", "--tags", "--verify", "--quiet", "refs/tags/$TagName")
+Invoke-Git -Args @("show-ref", "--tags", "--verify", "--quiet", "refs/tags/$TagName")
 if ($LASTEXITCODE -ne 0) {
     throw "Tag does not exist locally: $TagName"
 }
@@ -103,6 +103,6 @@ foreach ($assetPath in $Assets) {
     $GhArgs += $assetPath
 }
 
-Invoke-Gh $GhArgs
+Invoke-Gh -Args $GhArgs
 
 Write-Host "Draft GitHub Release created for tag $TagName."
