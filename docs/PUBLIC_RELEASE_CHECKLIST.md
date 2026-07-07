@@ -12,6 +12,7 @@ Use this checklist before publishing the Windows installer artifact.
 - The release manifest and SHA256 checksum report are produced.
 - The public release artifact bundle verifies successfully.
 - The RC tag follows `v1.0.0-rcN`.
+- Run the draft release workflow once with `validate_only=true` to verify the bundle before creating the release.
 - The draft release input validates successfully.
 - The draft release contains only the public installer zip, manifest, checksum report, and draft release notes.
 - The draft release remains unpublished.

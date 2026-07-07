@@ -3,6 +3,11 @@ name: Draft GitHub Release
 on:
   workflow_dispatch:
     inputs:
+      validate_only:
+        description: Validate the draft release bundle without creating a release
+        required: false
+        type: boolean
+        default: false
       tag_name:
         description: RC tag name, for example v1.0.0-rc1
         required: true
@@ -31,7 +36,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.target_commitish }}
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Validate release tooling
         shell: pwsh
@@ -73,6 +79,7 @@ jobs:
       - name: Build draft release input
         shell: pwsh
         env:
+          WORKFLOW_REF: ${{ github.ref }}
           TAG_NAME: ${{ inputs.tag_name }}
           TARGET_COMMITISH: ${{ inputs.target_commitish }}
         run: |
@@ -88,40 +95,42 @@ jobs:
           }
 
           $input = [pscustomobject]@{
-            schema_version  = "2026-07-p7c"
+            schema_version  = "2026-07-p7e"
             release_line    = "TUFF-CSE-WinFS v1 RC"
+            workflow_ref    = $env:WORKFLOW_REF
             tag_name        = $env:TAG_NAME
+            release_target_commitish = $env:TARGET_COMMITISH
             target_commitish = $env:TARGET_COMMITISH
-            release_name    = "TUFF-CSE-WinFS $($env:TAG_NAME) draft release"
+            release_name    = "TUFF-CSE-WinFS $($env:TAG_NAME)"
             draft           = $true
             prerelease      = $true
             publish         = $false
-            artifact_manifest = $manifest
-            checksums       = $checksums
-            release_notes   = $notes
+            artifact_manifest = "V1_RC_ARTIFACT_MANIFEST.json"
+            checksums       = "V1_RC_CHECKSUMS.sha256"
+            release_notes   = "V1_RC_RELEASE_NOTES.md"
             assets = @(
               [pscustomobject]@{
                 kind  = "portable_zip"
                 name  = $artifactZip.Name
-                path  = $artifactZip.FullName
+                path  = $artifactZip.Name
                 label = "public windows installer zip"
               },
               [pscustomobject]@{
                 kind  = "artifact_manifest"
                 name  = "V1_RC_ARTIFACT_MANIFEST.json"
-                path  = $manifest
+                path  = "V1_RC_ARTIFACT_MANIFEST.json"
                 label = "release manifest"
               },
               [pscustomobject]@{
                 kind  = "checksums"
                 name  = "V1_RC_CHECKSUMS.sha256"
-                path  = $checksums
+                path  = "V1_RC_CHECKSUMS.sha256"
                 label = "checksum report"
               },
               [pscustomobject]@{
                 kind  = "release_notes"
                 name  = "V1_RC_RELEASE_NOTES.md"
-                path  = $notes
+                path  = "V1_RC_RELEASE_NOTES.md"
                 label = "draft release notes"
               }
             )
@@ -135,7 +144,16 @@ jobs:
         run: |
           .\release\verify-draft-release-inputs.ps1 -InputPath "$env:GITHUB_WORKSPACE\.tuff-cse-winfs-dev\p7c-draft-release\V1_RC_DRAFT_RELEASE_INPUT.json"
 
+      - name: Validate draft release creation only
+        if: ${{ inputs.validate_only }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          .\release\create-draft-github-release.ps1 -InputPath "$env:GITHUB_WORKSPACE\.tuff-cse-winfs-dev\p7c-draft-release\V1_RC_DRAFT_RELEASE_INPUT.json" -ValidateOnly
+
       - name: Create draft GitHub release
+        if: ${{ !inputs.validate_only }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}

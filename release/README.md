@@ -20,6 +20,8 @@ This directory holds the public release artifact boundary for TUFF-CSE-WinFS v1 
 - Public artifact packaging only.
 - Draft release notes only.
 - RC tag naming and manual draft release creation only.
+- Workflow ref is recorded separately from the release target commit.
+- `validate_only` runs verify the bundle without creating a release.
 - No GitHub Release publish step.
 - No live driver install, service install, signing, KMS/HSM/CloudKMS/PKCS#11 integration, TPM live API, or CSE crypto I/O.
 

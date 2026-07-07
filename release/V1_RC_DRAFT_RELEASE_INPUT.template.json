@@ -1,9 +1,11 @@
 {
-  "schema_version": "2026-07-p7c",
+  "schema_version": "2026-07-p7e",
   "release_line": "TUFF-CSE-WinFS v1 RC",
+  "workflow_ref": "<workflow-ref>",
   "tag_name": "v1.0.0-rc1",
   "target_commitish": "<p7c-main-head>",
-  "release_name": "TUFF-CSE-WinFS v1.0.0-rc1 draft release",
+  "release_target_commitish": "<p7d-release-target-commitish>",
+  "release_name": "TUFF-CSE-WinFS v1.0.0-rc1",
   "draft": true,
   "prerelease": true,
   "publish": false,
