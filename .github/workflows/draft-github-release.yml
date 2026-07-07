@@ -96,32 +96,32 @@ jobs:
             draft           = $true
             prerelease      = $true
             publish         = $false
-            artifact_manifest = $manifest
-            checksums       = $checksums
-            release_notes   = $notes
+            artifact_manifest = "V1_RC_ARTIFACT_MANIFEST.json"
+            checksums       = "V1_RC_CHECKSUMS.sha256"
+            release_notes   = "V1_RC_RELEASE_NOTES.md"
             assets = @(
               [pscustomobject]@{
                 kind  = "portable_zip"
                 name  = $artifactZip.Name
-                path  = $artifactZip.FullName
+                path  = $artifactZip.Name
                 label = "public windows installer zip"
               },
               [pscustomobject]@{
                 kind  = "artifact_manifest"
                 name  = "V1_RC_ARTIFACT_MANIFEST.json"
-                path  = $manifest
+                path  = "V1_RC_ARTIFACT_MANIFEST.json"
                 label = "release manifest"
               },
               [pscustomobject]@{
                 kind  = "checksums"
                 name  = "V1_RC_CHECKSUMS.sha256"
-                path  = $checksums
+                path  = "V1_RC_CHECKSUMS.sha256"
                 label = "checksum report"
               },
               [pscustomobject]@{
                 kind  = "release_notes"
                 name  = "V1_RC_RELEASE_NOTES.md"
-                path  = $notes
+                path  = "V1_RC_RELEASE_NOTES.md"
                 label = "draft release notes"
               }
             )
