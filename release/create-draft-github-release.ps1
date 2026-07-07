@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [string]$InputPath
+    [string]$InputPath,
+    [switch]$ValidateOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,21 +17,34 @@ function Resolve-AbsolutePath {
     return [System.IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
 }
 
-function Invoke-Git {
-    param([string[]]$Args)
+function Resolve-InputPath {
+    param(
+        [string]$BaseDir,
+        [string]$Path
+    )
 
-    & git @Args
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return Resolve-AbsolutePath $Path
+    }
+
+    return Resolve-AbsolutePath (Join-Path $BaseDir $Path)
+}
+
+function Invoke-Git {
+    param([string[]]$CommandArgs)
+
+    & git @CommandArgs
     if ($LASTEXITCODE -ne 0) {
-        throw "git $($Args -join ' ') failed."
+        throw "git $($CommandArgs -join ' ') failed."
     }
 }
 
 function Invoke-Gh {
-    param([string[]]$Args)
+    param([string[]]$CommandArgs)
 
-    & gh @Args
+    & gh @CommandArgs
     if ($LASTEXITCODE -ne 0) {
-        throw "gh $($Args -join ' ') failed."
+        throw "gh $($CommandArgs -join ' ') failed."
     }
 }
 
@@ -41,11 +55,24 @@ $VerificationScript = Join-Path $PSScriptRoot "verify-draft-release-inputs.ps1"
 
 $Input = Get-Content -Path $ResolvedInputPath -Raw | ConvertFrom-Json
 $TagName = $Input.tag_name
-$TargetCommitish = $Input.target_commitish
+$LegacyTargetCommitish = $Input.target_commitish
+$TargetCommitish = if ($Input.PSObject.Properties.Name -contains "release_target_commitish" -and -not [string]::IsNullOrWhiteSpace($Input.release_target_commitish)) {
+    $Input.release_target_commitish
+} else {
+    $LegacyTargetCommitish
+}
 $ReleaseName = $Input.release_name
-$ResolvedReleaseNotes = Resolve-AbsolutePath (Join-Path $InputDir $Input.release_notes)
+$ResolvedReleaseNotes = Resolve-InputPath -BaseDir $InputDir -Path $Input.release_notes
 
-Invoke-Git @("show-ref", "--tags", "--verify", "--quiet", "refs/tags/$TagName")
+if ([string]::IsNullOrWhiteSpace($TargetCommitish)) {
+    throw "Missing target_commitish."
+}
+
+if (-not [string]::IsNullOrWhiteSpace($LegacyTargetCommitish) -and $LegacyTargetCommitish -ne $TargetCommitish) {
+    throw "release_target_commitish must match target_commitish."
+}
+
+Invoke-Git -CommandArgs @("show-ref", "--tags", "--verify", "--quiet", "refs/tags/$TagName")
 if ($LASTEXITCODE -ne 0) {
     throw "Tag does not exist locally: $TagName"
 }
@@ -65,10 +92,15 @@ if ($ReleaseExists) {
 
 $Assets = @()
 foreach ($asset in $Input.assets) {
-    $assetPath = Resolve-AbsolutePath (Join-Path $InputDir $asset.path)
+    $assetPath = Resolve-InputPath -BaseDir $InputDir -Path $asset.path
     if ($asset.kind -eq "checksums" -or $asset.kind -eq "artifact_manifest" -or $asset.kind -eq "release_notes" -or $asset.kind -eq "portable_zip") {
         $Assets += $assetPath
     }
+}
+
+if ($ValidateOnly) {
+    Write-Host "Draft GitHub Release validation only; creation skipped for tag $TagName."
+    return
 }
 
 $GhArgs = @(
@@ -90,6 +122,6 @@ foreach ($assetPath in $Assets) {
     $GhArgs += $assetPath
 }
 
-Invoke-Gh $GhArgs
+Invoke-Gh -CommandArgs $GhArgs
 
 Write-Host "Draft GitHub Release created for tag $TagName."

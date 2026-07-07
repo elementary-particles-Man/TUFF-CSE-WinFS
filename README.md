@@ -248,18 +248,20 @@ P7B wraps the P7A installer package in a public release artifact bundle. It adds
 ## Current Phase: P7C (RC Tag / Draft GitHub Release Asset Boundary)
 
 P7C connects the fixed `v1.0.0-rcN` tag candidate to a draft GitHub Release asset boundary. It keeps the release draft manual and fail-closed, and it does not publish a GitHub Release.
+P7E keeps that boundary reproducible by separating the workflow ref from the release target commit and by supporting `validate_only` runs.
 
 ### P7C Highlights
 - `release/RC_TAG_POLICY.md` fixes the RC tag format to `v1.0.0-rcN`.
 - `release/V1_RC_DRAFT_RELEASE_INPUT.template.json` defines the draft release input boundary.
 - `release/verify-draft-release-inputs.ps1` validates the draft release asset set and checksum alignment.
-- `release/create-draft-github-release.ps1` creates a draft prerelease only.
+- `release/create-draft-github-release.ps1` creates a draft prerelease only and supports validation-only runs.
 - `.github/workflows/draft-github-release.yml` is workflow_dispatch-only.
 
 ### P7C Boundary
 - Attach only the public installer zip, release manifest, checksum report, and draft release notes.
 - Keep GitHub Release publish deferred.
 - Keep existing tags untouched and never use force tag behavior.
+- Keep workflow execution ref separate from the release target commit.
 - Keep live driver install, service install, signing, KMS/HSM/CloudKMS/PKCS#11, TPM live API, and CSE crypto I/O out of scope.
 
 ## Current Phase: P4A (Local Policy / Local Admin Approval Boundary)

@@ -1,6 +1,7 @@
 # RC Tag Policy
 
 TUFF-CSE-WinFS P7C fixes the RC tag boundary before any GitHub Release draft is created.
+P7E keeps the tag rule intact while separating the workflow ref from the release target commit.
 
 ## Tag Format
 
@@ -14,6 +15,7 @@ TUFF-CSE-WinFS P7C fixes the RC tag boundary before any GitHub Release draft is 
 - Tag creation is limited to a manual release workflow or an explicit release script boundary.
 - Existing tags must never be overwritten.
 - Force push and force tag behavior are prohibited.
+- Workflow execution ref and release target commit are recorded separately in the draft input.
 
 ## Release Boundary
 

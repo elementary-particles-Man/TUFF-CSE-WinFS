@@ -1,6 +1,7 @@
 # RC Tag and Draft Release
 
 P7C connects the fixed RC tag candidate to a draft GitHub Release asset boundary.
+P7E keeps the same draft asset boundary but makes the workflow reproducible by separating the workflow ref from the release target commit.
 
 ## Required Order
 
@@ -8,12 +9,14 @@ P7C connects the fixed RC tag candidate to a draft GitHub Release asset boundary
 2. Verify the release manifest and checksum report with `release/verify-release-artifacts.ps1`.
 3. Verify the draft release input with `release/verify-draft-release-inputs.ps1`.
 4. Create the draft release with `release/create-draft-github-release.ps1`.
+5. Use `validate_only=true` first when you only want to verify the bundle and input without creating the release.
 
 ## Tag Rule
 
 - RC tags must use `v1.0.0-rcN`.
 - The initial candidate is `v1.0.0-rc1`.
 - The tag target commit is the P7C `main` head.
+- The workflow ref is recorded separately from the release target commit.
 
 ## Asset Boundary
 
