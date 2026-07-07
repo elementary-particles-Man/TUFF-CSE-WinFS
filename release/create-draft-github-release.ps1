@@ -30,20 +30,20 @@ function Resolve-InputPath {
 }
 
 function Invoke-Git {
-    param([string[]]$Args)
+    param([string[]]$CommandArgs)
 
-    & git @Args
+    & git @CommandArgs
     if ($LASTEXITCODE -ne 0) {
-        throw "git $($Args -join ' ') failed."
+        throw "git $($CommandArgs -join ' ') failed."
     }
 }
 
 function Invoke-Gh {
-    param([string[]]$Args)
+    param([string[]]$CommandArgs)
 
-    & gh @Args
+    & gh @CommandArgs
     if ($LASTEXITCODE -ne 0) {
-        throw "gh $($Args -join ' ') failed."
+        throw "gh $($CommandArgs -join ' ') failed."
     }
 }
 
@@ -58,7 +58,7 @@ $TargetCommitish = $Input.target_commitish
 $ReleaseName = $Input.release_name
 $ResolvedReleaseNotes = Resolve-InputPath -BaseDir $InputDir -Path $Input.release_notes
 
-Invoke-Git -Args @("show-ref", "--tags", "--verify", "--quiet", "refs/tags/$TagName")
+Invoke-Git -CommandArgs @("show-ref", "--tags", "--verify", "--quiet", "refs/tags/$TagName")
 if ($LASTEXITCODE -ne 0) {
     throw "Tag does not exist locally: $TagName"
 }
@@ -103,6 +103,6 @@ foreach ($assetPath in $Assets) {
     $GhArgs += $assetPath
 }
 
-Invoke-Gh -Args $GhArgs
+Invoke-Gh -CommandArgs $GhArgs
 
 Write-Host "Draft GitHub Release created for tag $TagName."
