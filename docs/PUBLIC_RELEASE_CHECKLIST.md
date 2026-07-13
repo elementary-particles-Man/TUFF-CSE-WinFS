@@ -16,6 +16,8 @@ Use this checklist before publishing the Windows installer artifact.
 - The draft release input validates successfully.
 - The draft release contains only the public installer zip, manifest, checksum report, and draft release notes.
 - The draft release remains unpublished.
+- The read-only P7G verifier confirms the remote tag target, release metadata, exact assets, source artifact byte identity, manifest, checksums, secret scan, and fixed RC1 metadata hash.
+- The P7G evidence JSON validates against `release/V1_RC_DRAFT_RELEASE_EVIDENCE.schema.json`.
 
 ## Prohibited Checks
 
@@ -28,6 +30,7 @@ Use this checklist before publishing the Windows installer artifact.
 - No GitHub Release publish.
 - No tag overwrite.
 - No force tag.
+- No mutation of an existing tag, draft release, or release asset during evidence verification.
 
 ## Release Notes
 

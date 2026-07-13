@@ -14,6 +14,8 @@ This directory holds the public release artifact boundary for TUFF-CSE-WinFS v1 
 - `verify-release-artifacts.ps1`
 - `verify-draft-release-inputs.ps1`
 - `create-draft-github-release.ps1`
+- `verify-existing-draft-release.ps1`
+- `V1_RC_DRAFT_RELEASE_EVIDENCE.schema.json`
 
 ## Boundary
 
@@ -22,6 +24,7 @@ This directory holds the public release artifact boundary for TUFF-CSE-WinFS v1 
 - RC tag naming and manual draft release creation only.
 - Workflow ref is recorded separately from the release target commit.
 - `validate_only` runs verify the bundle without creating a release.
+- P7G verifies an existing RC draft, source artifact, checksums, manifest, and byte identity without changing remote state.
 - No GitHub Release publish step.
 - No live driver install, service install, signing, KMS/HSM/CloudKMS/PKCS#11 integration, TPM live API, or CSE crypto I/O.
 
@@ -32,3 +35,4 @@ This directory holds the public release artifact boundary for TUFF-CSE-WinFS v1 
 3. Generate the release manifest and SHA256 checksums.
 4. Verify the public release bundle.
 5. Validate the RC tag and draft release input, then create the draft GitHub Release.
+6. Run the read-only existing draft verifier and retain its schema-validated evidence artifact.

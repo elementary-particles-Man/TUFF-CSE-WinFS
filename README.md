@@ -238,6 +238,8 @@ P7B wraps the P7A installer package in a public release artifact bundle. It adds
 - [`release/README.md`](release/README.md)
 - [`release/build-release-manifest.ps1`](release/build-release-manifest.ps1)
 - [`release/verify-release-artifacts.ps1`](release/verify-release-artifacts.ps1)
+- [`docs/RC2_DRAFT_RELEASE_EVIDENCE.md`](docs/RC2_DRAFT_RELEASE_EVIDENCE.md)
+- [`release/verify-existing-draft-release.ps1`](release/verify-existing-draft-release.ps1)
 
 ### Public Release Boundary
 - Package the P7A portable zip into a release bundle.
@@ -249,6 +251,7 @@ P7B wraps the P7A installer package in a public release artifact bundle. It adds
 
 P7C connects the fixed `v1.0.0-rcN` tag candidate to a draft GitHub Release asset boundary. It keeps the release draft manual and fail-closed, and it does not publish a GitHub Release.
 P7E keeps that boundary reproducible by separating the workflow ref from the release target commit and by supporting `validate_only` runs.
+P7F proves that flow with the fixed RC2 tag and draft release. P7G adds an independent, read-only evidence workflow that re-verifies the tag, metadata, source artifact, four release assets, manifest, checksums, byte identity, secret scan, and RC1 metadata hash.
 
 ### P7C Highlights
 - `release/RC_TAG_POLICY.md` fixes the RC tag format to `v1.0.0-rcN`.
@@ -256,6 +259,8 @@ P7E keeps that boundary reproducible by separating the workflow ref from the rel
 - `release/verify-draft-release-inputs.ps1` validates the draft release asset set and checksum alignment.
 - `release/create-draft-github-release.ps1` creates a draft prerelease only and supports validation-only runs.
 - `.github/workflows/draft-github-release.yml` is workflow_dispatch-only.
+- `.github/workflows/verify-draft-github-release.yml` is workflow_dispatch-only and uses read-only repository and Actions permissions.
+- `release/verify-existing-draft-release.ps1` emits schema-validated P7G evidence without changing GitHub state.
 
 ### P7C Boundary
 - Attach only the public installer zip, release manifest, checksum report, and draft release notes.

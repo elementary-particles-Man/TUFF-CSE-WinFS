@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/elementary-particles-Man/TUFF-CSE-WinFS/releases/V1_RC_DRAFT_RELEASE_EVIDENCE.schema.json",
+  "title": "TUFF-CSE-WinFS RC Draft Release Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "repository",
+    "tag_name",
+    "tag_target_commit",
+    "release_name",
+    "release_target_commitish",
+    "is_draft",
+    "is_prerelease",
+    "published_at",
+    "workflow_main_commit",
+    "source_main_commit",
+    "artifact_workflow_run_id",
+    "validate_only_workflow_run_id",
+    "create_workflow_run_id",
+    "verification_workflow_run_id",
+    "assets",
+    "source_artifact_assets",
+    "byte_identity_verified",
+    "manifest_verified",
+    "checksums_verified",
+    "secret_scan_clean",
+    "rc1_metadata_sha256",
+    "generated_at_utc"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "2026-07-p7g"
+    },
+    "repository": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tag_name": {
+      "type": "string",
+      "pattern": "^v1\\.0\\.0-rc[1-9][0-9]*$"
+    },
+    "tag_target_commit": {
+      "$ref": "#/$defs/commit"
+    },
+    "release_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "release_target_commitish": {
+      "$ref": "#/$defs/commit"
+    },
+    "is_draft": {
+      "const": true
+    },
+    "is_prerelease": {
+      "const": true
+    },
+    "published_at": {
+      "type": "null"
+    },
+    "workflow_main_commit": {
+      "$ref": "#/$defs/commit"
+    },
+    "source_main_commit": {
+      "$ref": "#/$defs/commit"
+    },
+    "artifact_workflow_run_id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "validate_only_workflow_run_id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "create_workflow_run_id": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "verification_workflow_run_id": {
+      "type": ["integer", "null"],
+      "minimum": 1
+    },
+    "assets": {
+      "$ref": "#/$defs/assets"
+    },
+    "source_artifact_assets": {
+      "$ref": "#/$defs/assets"
+    },
+    "byte_identity_verified": {
+      "const": true
+    },
+    "manifest_verified": {
+      "const": true
+    },
+    "checksums_verified": {
+      "const": true
+    },
+    "secret_scan_clean": {
+      "const": true
+    },
+    "rc1_metadata_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "generated_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "$defs": {
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "size", "sha256"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "$ref": "#/$defs/asset"
+      }
+    }
+  }
+}
