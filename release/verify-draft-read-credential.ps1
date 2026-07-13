@@ -302,8 +302,8 @@ $userOutput = Invoke-Checked -Command "gh" -CommandArgs @("api", "user")
 Assert-True (-not [string]::IsNullOrWhiteSpace(($userOutput -join "`n"))) "GET /user failed."
 
 $repositoryOutput = Invoke-Checked -Command "gh" -CommandArgs @("api", "repos/$Repository")
-$repository = ($repositoryOutput -join "`n") | ConvertFrom-Json
-Assert-True ($repository.full_name -eq $Repository) "Repository access verification failed."
+$repositoryMetadata = ($repositoryOutput -join "`n") | ConvertFrom-Json
+Assert-True ($repositoryMetadata.full_name -ieq $Repository) "Repository access verification failed."
 
 $tagLines = @(Invoke-Checked -Command "git" -CommandArgs @("ls-remote", "--tags", "origin", "refs/tags/$TagName", "refs/tags/$TagName^{}"))
 Assert-True ($tagLines.Count -ge 1) "Remote tag does not exist."
