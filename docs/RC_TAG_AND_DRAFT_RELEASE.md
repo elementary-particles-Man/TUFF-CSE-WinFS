@@ -17,6 +17,7 @@ P7E keeps the same draft asset boundary but makes the workflow reproducible by s
 - The initial candidate is `v1.0.0-rc1`.
 - The tag target commit is the P7C `main` head.
 - The workflow ref is recorded separately from the release target commit.
+- The release target is verified against the existing RC tag, not against the workflow checkout HEAD.
 
 ## Asset Boundary
 

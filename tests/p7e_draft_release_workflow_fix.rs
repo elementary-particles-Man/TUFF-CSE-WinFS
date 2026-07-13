@@ -68,6 +68,11 @@ mod tests {
         );
         assert_contains(
             &verify_script,
+            "release_target_commitish must match the RC tag target commit",
+        );
+        assert_contains(&verify_script, "refs/tags/$($Input.tag_name)^{commit}");
+        assert_not_contains(
+            &verify_script,
             "target_commitish must match the current HEAD commit",
         );
         assert_contains(&verify_script, "Resolve-InputPath");
@@ -76,6 +81,16 @@ mod tests {
         assert_contains(
             &create_script,
             "Draft GitHub Release validation only; creation skipped",
+        );
+        let validate_only_boundary = create_script
+            .find("if ($ValidateOnly)")
+            .expect("missing ValidateOnly boundary");
+        let release_lookup = create_script
+            .find("gh release view")
+            .expect("missing existing release check");
+        assert!(
+            validate_only_boundary < release_lookup,
+            "ValidateOnly must stop before querying or creating a GitHub Release"
         );
         assert_contains(
             &create_script,

@@ -72,6 +72,11 @@ if (-not [string]::IsNullOrWhiteSpace($LegacyTargetCommitish) -and $LegacyTarget
     throw "release_target_commitish must match target_commitish."
 }
 
+if ($ValidateOnly) {
+    Write-Host "Draft GitHub Release validation only; creation skipped for tag $TagName."
+    return
+}
+
 Invoke-Git -CommandArgs @("show-ref", "--tags", "--verify", "--quiet", "refs/tags/$TagName")
 if ($LASTEXITCODE -ne 0) {
     throw "Tag does not exist locally: $TagName"
@@ -96,11 +101,6 @@ foreach ($asset in $Input.assets) {
     if ($asset.kind -eq "checksums" -or $asset.kind -eq "artifact_manifest" -or $asset.kind -eq "release_notes" -or $asset.kind -eq "portable_zip") {
         $Assets += $assetPath
     }
-}
-
-if ($ValidateOnly) {
-    Write-Host "Draft GitHub Release validation only; creation skipped for tag $TagName."
-    return
 }
 
 $GhArgs = @(
