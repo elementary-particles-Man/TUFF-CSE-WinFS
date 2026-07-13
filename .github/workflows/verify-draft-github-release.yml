@@ -46,7 +46,7 @@ jobs:
       - name: Verify existing draft release
         shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.P7G_DRAFT_READ_TOKEN }}
         run: |
           .\release\verify-existing-draft-release.ps1 `
             -Repository "${{ github.repository }}" `
