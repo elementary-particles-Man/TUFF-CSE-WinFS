@@ -30,15 +30,6 @@ function Resolve-InputPath {
     return Resolve-AbsolutePath (Join-Path $BaseDir $Path)
 }
 
-function Invoke-Git {
-    param([string[]]$CommandArgs)
-
-    & git @CommandArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw "git $($CommandArgs -join ' ') failed."
-    }
-}
-
 function Invoke-Gh {
     param([string[]]$CommandArgs)
 
@@ -77,9 +68,22 @@ if ($ValidateOnly) {
     return
 }
 
-Invoke-Git -CommandArgs @("show-ref", "--tags", "--verify", "--quiet", "refs/tags/$TagName")
-if ($LASTEXITCODE -ne 0) {
-    throw "Tag does not exist locally: $TagName"
+$localTagOutput = & git show-ref --tags --verify --quiet "refs/tags/$TagName" 2>&1
+$localTagExitCode = $LASTEXITCODE
+if ($localTagExitCode -eq 0) {
+    throw "Tag already exists locally: $TagName"
+}
+if ($localTagExitCode -ne 1) {
+    throw "git show-ref failed: $localTagOutput"
+}
+
+$remoteTagOutput = & git ls-remote --exit-code --tags origin "refs/tags/$TagName" 2>&1
+$remoteTagExitCode = $LASTEXITCODE
+if ($remoteTagExitCode -eq 0) {
+    throw "Tag already exists remotely: $TagName"
+}
+if ($remoteTagExitCode -ne 2) {
+    throw "git ls-remote failed: $remoteTagOutput"
 }
 
 $ReleaseExists = $false
@@ -109,7 +113,6 @@ $GhArgs = @(
     $TagName,
     "--draft",
     "--prerelease",
-    "--verify-tag",
     "--target",
     $TargetCommitish,
     "--title",

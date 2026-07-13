@@ -66,11 +66,8 @@ mod tests {
             &verify_script,
             "release_target_commitish must match target_commitish",
         );
-        assert_contains(
-            &verify_script,
-            "release_target_commitish must match the RC tag target commit",
-        );
-        assert_contains(&verify_script, "refs/tags/$($Input.tag_name)^{commit}");
+        assert_contains(&verify_script, "Invalid target_commitish");
+        assert_not_contains(&verify_script, "refs/tags/$($Input.tag_name)^{commit}");
         assert_not_contains(
             &verify_script,
             "target_commitish must match the current HEAD commit",
@@ -98,7 +95,7 @@ mod tests {
         );
         assert_contains(&create_script, "--draft");
         assert_contains(&create_script, "--prerelease");
-        assert_contains(&create_script, "--verify-tag");
+        assert_not_contains(&create_script, "--verify-tag");
         assert_not_contains(&create_script, "gh release edit");
         assert_not_contains(&create_script, "--draft=false");
         assert_not_contains(&create_script, "publish");
