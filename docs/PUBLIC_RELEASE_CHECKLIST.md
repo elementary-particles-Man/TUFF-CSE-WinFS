@@ -18,6 +18,8 @@ Use this checklist before publishing the Windows installer artifact.
 - The draft release remains unpublished.
 - The read-only P7G verifier confirms the remote tag target, release metadata, exact assets, source artifact byte identity, manifest, checksums, secret scan, and fixed RC1 metadata hash.
 - The P7G evidence JSON validates against `release/V1_RC_DRAFT_RELEASE_EVIDENCE.schema.json`.
+- The P7H verifier confirms the fine-grained read credential, repository restriction, release asset reads, source artifact reads, and byte identity without recording token material.
+- The P7H evidence JSON validates against `release/P7H_DRAFT_READ_CREDENTIAL_EVIDENCE.schema.json`.
 
 ## Prohibited Checks
 
