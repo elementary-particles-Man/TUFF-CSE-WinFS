@@ -20,6 +20,8 @@ $ErrorActionPreference = "Stop"
 $WorkflowMainCommit = "a408ec1dbbceedf1fc3a41be769c431a78ebef6e"
 $ValidateOnlyWorkflowRunId = 29280376557
 $CreateWorkflowRunId = 29280420925
+$ExpectedRc2ReleaseId = 353395540
+$ExpectedRc1ReleaseId = 350514171
 $ExpectedAssets = [ordered]@{
     "TUFF-CSE-WinFS-08d0d25-public-windows-installer.zip" = 1307789
     "V1_RC_ARTIFACT_MANIFEST.json" = 1093
@@ -70,6 +72,67 @@ function Get-TextSha256Hex {
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
     $hash = [System.Security.Cryptography.SHA256]::HashData($bytes)
     return [System.Convert]::ToHexString($hash).ToLowerInvariant()
+}
+
+function ConvertFrom-RestRelease {
+    param([object]$RestRelease)
+
+    return [ordered]@{
+        assets = @($RestRelease.assets | ForEach-Object {
+            [ordered]@{
+                apiUrl = $_.url
+                contentType = $_.content_type
+                createdAt = $_.created_at
+                downloadCount = [long]$_.download_count
+                id = $_.node_id
+                label = $_.label
+                name = $_.name
+                size = [long]$_.size
+                state = $_.state
+                updatedAt = $_.updated_at
+                url = $_.browser_download_url
+            }
+        })
+        isDraft = [bool]$RestRelease.draft
+        isPrerelease = [bool]$RestRelease.prerelease
+        publishedAt = $RestRelease.published_at
+        tagName = $RestRelease.tag_name
+        targetCommitish = $RestRelease.target_commitish
+        name = $RestRelease.name
+        url = $RestRelease.html_url
+    }
+}
+
+function Get-FixedRelease {
+    param(
+        [long]$ReleaseId,
+        [string]$ExpectedTag
+    )
+
+    $restJson = (Invoke-Checked -Command "gh" -CommandArgs @(
+        "api", "repos/$Repository/releases/$ReleaseId"
+    )) -join "`n"
+    $restRelease = $restJson | ConvertFrom-Json
+    Assert-True ([long]$restRelease.id -eq $ReleaseId) "Release ID mismatch."
+    Assert-True ($restRelease.tag_name -eq $ExpectedTag) "Release tag mismatch."
+    return [ordered]@{
+        rest = $restRelease
+        normalized = ConvertFrom-RestRelease -RestRelease $restRelease
+    }
+}
+
+function Save-ReleaseAsset {
+    param(
+        [string]$ApiUrl,
+        [string]$Path
+    )
+
+    $headers = @{
+        Accept = "application/octet-stream"
+        Authorization = "Bearer $env:GH_TOKEN"
+        "X-GitHub-Api-Version" = "2022-11-28"
+    }
+    Invoke-WebRequest -Uri $ApiUrl -Headers $headers -OutFile $Path
 }
 
 function Test-FileByteIdentity {
@@ -240,11 +303,8 @@ $tagLine = if ($peeledLine.Count -eq 1) { $peeledLine[0] } else { $tagLines[0] }
 $tagTarget = ($tagLine -split "\s+")[0].ToLowerInvariant()
 Assert-True ($tagTarget -eq $ExpectedTargetCommitish) "Remote tag target mismatch."
 
-$releaseJson = (Invoke-Checked -Command "gh" -CommandArgs @(
-    "release", "view", $TagName, "--repo", $Repository,
-    "--json", "tagName,targetCommitish,name,isDraft,isPrerelease,publishedAt,url,assets"
-)) -join "`n"
-$release = $releaseJson | ConvertFrom-Json
+$fixedRc2 = Get-FixedRelease -ReleaseId $ExpectedRc2ReleaseId -ExpectedTag $TagName
+$release = $fixedRc2.normalized
 Assert-True ($release.tagName -eq $TagName) "Release tag mismatch."
 Assert-True ($release.name -eq $ReleaseName) "Release name mismatch."
 Assert-True ($release.targetCommitish -eq $ExpectedTargetCommitish) "Release target mismatch."
@@ -271,9 +331,10 @@ try {
         "run", "download", "$ArtifactRunId", "--repo", $Repository,
         "--name", "public-release-artifact-bundle", "--dir", $sourceDirectory
     ) | Out-Null
-    Invoke-Checked -Command "gh" -CommandArgs @(
-        "release", "download", $TagName, "--repo", $Repository, "--dir", $releaseDirectory
-    ) | Out-Null
+    foreach ($asset in $fixedRc2.rest.assets) {
+        Assert-True ($ExpectedAssets.Contains($asset.name)) "Unexpected release asset."
+        Save-ReleaseAsset -ApiUrl $asset.url -Path (Join-Path $releaseDirectory $asset.name)
+    }
 
     Assert-ExpectedFiles -Directory $sourceDirectory
     Assert-ExpectedFiles -Directory $releaseDirectory
@@ -295,10 +356,16 @@ try {
         -ZipPath (Join-Path $releaseDirectory "TUFF-CSE-WinFS-08d0d25-public-windows-installer.zip") `
         -ExtractDirectory $extractDirectory
 
-    $rc1Json = (Invoke-Checked -Command "gh" -CommandArgs @(
-        "release", "view", "v1.0.0-rc1", "--repo", $Repository,
-        "--json", "tagName,targetCommitish,isDraft,isPrerelease,publishedAt,assets", "--jq", "."
-    )) -join "`n"
+    $fixedRc1 = Get-FixedRelease -ReleaseId $ExpectedRc1ReleaseId -ExpectedTag "v1.0.0-rc1"
+    $rc1ForHash = [ordered]@{
+        assets = $fixedRc1.normalized.assets
+        isDraft = $fixedRc1.normalized.isDraft
+        isPrerelease = $fixedRc1.normalized.isPrerelease
+        publishedAt = $fixedRc1.normalized.publishedAt
+        tagName = $fixedRc1.normalized.tagName
+        targetCommitish = $fixedRc1.normalized.targetCommitish
+    }
+    $rc1Json = $rc1ForHash | ConvertTo-Json -Depth 6 -Compress
     $rc1Hash = Get-TextSha256Hex -Text ($rc1Json + "`n")
     Assert-True ($rc1Hash -eq $ExpectedRc1MetadataSha256) "RC1 metadata SHA256 mismatch."
 
