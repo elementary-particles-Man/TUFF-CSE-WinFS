@@ -14,8 +14,12 @@ mod tests {
         )
         .unwrap();
 
-        assert!(script.contains("$repositoryMetadata = ($repositoryOutput -join \"`n\") | ConvertFrom-Json"));
+        assert!(script.contains(
+            "$repositoryMetadata = ($repositoryOutput -join \"`n\") | ConvertFrom-Json"
+        ));
         assert!(script.contains("$repositoryMetadata.full_name -ieq $Repository"));
-        assert!(!script.contains("$repository = ($repositoryOutput -join \"`n\") | ConvertFrom-Json"));
+        assert!(!script.contains(
+            "$repository = ($repositoryOutput -join \"`n\") | ConvertFrom-Json"
+        ));
     }
 }
