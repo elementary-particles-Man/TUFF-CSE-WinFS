@@ -266,7 +266,7 @@ P7Eは、その draft release boundary を維持したまま、workflow ref と 
 
 - **Tag Policy:** `RC_TAG_POLICY.md` で `v1.0.0-rcN` を固定し、既存 tag の上書きを禁止する。
 - **Input Template:** `V1_RC_DRAFT_RELEASE_INPUT.template.json` は draft / prerelease を必須にし、asset boundary を公開 installer zip・manifest・checksum・release notes に限定する。
-- **Verification Order:** `rc-status` → manifest verify → checksum verify → draft release input verify → `validate_only=true` の bundle verify → draft release create の順で確認する。release target は workflow checkout HEAD から独立して検証し、manifest 内の source commit と一致させる。validate-only では tag を必要とせず、create path は既存 tag / release を拒否してから verified target に tag と draft release を作成する。
+- **Verification Order:** `rc-status` → manifest verify → checksum verify → draft release input verify → `validate_only=true` の bundle verify → draft release create の順で確認する。release target は workflow checkout HEAD から独立して検証し、manifest 内の source commit と一致させる。validate-only では tag を必要とせず、create path は既存 tag / release を拒否してから verified target に non-force で tag を push し、`--verify-tag` 付きで draft release を作成する。
 - **Workflow Boundary:** `draft-github-release.yml` は `workflow_dispatch` のみで起動し、publish は行わない。workflow の checkout ref は release target commit から分離する。
 - **Deferred:** GitHub Release publish、pnputil、driver install、service install、code signing、TPM live API、KMS/HSM/CloudKMS/PKCS#11 live integration は対象外とする。
 

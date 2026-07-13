@@ -34,20 +34,28 @@ mod tests {
     }
 
     #[test]
-    fn create_path_fails_closed_then_allows_gh_to_create_tag_at_target() {
+    fn create_path_fails_closed_then_pushes_tag_before_creating_draft() {
         let root = repo_root();
         let create_script = read(root.join("release/create-draft-github-release.ps1"));
 
         assert!(create_script.contains("Tag already exists locally"));
         assert!(create_script.contains("Tag already exists remotely"));
         assert!(create_script.contains("Release already exists for tag"));
+        assert!(create_script.contains("@(\"tag\", $TagName, $TargetCommitish)"));
+        assert!(create_script.contains("@(\"push\", \"origin\", \"refs/tags/$TagName\")"));
         assert!(create_script.contains("--target"));
         assert!(create_script.contains("--draft"));
         assert!(create_script.contains("--prerelease"));
-        assert!(!create_script.contains("--verify-tag"));
+        assert!(create_script.contains("--verify-tag"));
         assert!(!create_script.contains("gh release edit"));
         assert!(!create_script.contains("git tag -f"));
         assert!(!create_script.contains("--force"));
+
+        let tag_push = create_script
+            .find("Invoke-Git -CommandArgs @(\"push\", \"origin\", \"refs/tags/$TagName\")")
+            .unwrap();
+        let release_create = create_script.find("\"create\"").unwrap();
+        assert!(tag_push < release_create);
     }
 
     #[test]

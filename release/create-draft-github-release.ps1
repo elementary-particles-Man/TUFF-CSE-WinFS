@@ -30,6 +30,15 @@ function Resolve-InputPath {
     return Resolve-AbsolutePath (Join-Path $BaseDir $Path)
 }
 
+function Invoke-Git {
+    param([string[]]$CommandArgs)
+
+    & git @CommandArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "git $($CommandArgs -join ' ') failed."
+    }
+}
+
 function Invoke-Gh {
     param([string[]]$CommandArgs)
 
@@ -107,12 +116,16 @@ foreach ($asset in $Input.assets) {
     }
 }
 
+Invoke-Git -CommandArgs @("tag", $TagName, $TargetCommitish)
+Invoke-Git -CommandArgs @("push", "origin", "refs/tags/$TagName")
+
 $GhArgs = @(
     "release",
     "create",
     $TagName,
     "--draft",
     "--prerelease",
+    "--verify-tag",
     "--target",
     $TargetCommitish,
     "--title",

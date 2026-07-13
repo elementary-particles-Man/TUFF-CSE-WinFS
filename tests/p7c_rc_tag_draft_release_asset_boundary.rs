@@ -167,6 +167,7 @@ mod tests {
         assert!(create_script.contains("Tag already exists locally"));
         assert!(create_script.contains("Tag already exists remotely"));
         assert!(create_script.contains("--target"));
+        assert!(create_script.contains("--verify-tag"));
         assert!(verify_script.contains("draft must be true"));
         assert!(verify_script.contains("prerelease must be true"));
         assert!(
