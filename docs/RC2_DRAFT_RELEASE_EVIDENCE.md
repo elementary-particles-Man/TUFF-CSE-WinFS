@@ -25,6 +25,8 @@ The manual `Verify Draft GitHub Release` workflow has only `contents: read` and 
 6. recomputes the normalized RC1 metadata hash; and
 7. emits schema-validated, machine-readable evidence.
 
+Draft releases are addressed by their fixed P7F release IDs (`353395540` for RC2 and `350514171` for RC1). The script fail-closes unless the returned tag, name, target, state, assets, and RC1 normalized hash match the fixed boundary. This avoids a draft-listing dependency while retaining read-only workflow permissions.
+
 ## Evidence Artifact
 
 The workflow uploads `tuff-cse-winfs-v1.0.0-rc2-draft-release-evidence` containing:
