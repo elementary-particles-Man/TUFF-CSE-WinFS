@@ -95,7 +95,7 @@ mod tests {
         );
         assert_contains(&create_script, "--draft");
         assert_contains(&create_script, "--prerelease");
-        assert_not_contains(&create_script, "--verify-tag");
+        assert_contains(&create_script, "--verify-tag");
         assert_not_contains(&create_script, "gh release edit");
         assert_not_contains(&create_script, "--draft=false");
         assert_not_contains(&create_script, "publish");

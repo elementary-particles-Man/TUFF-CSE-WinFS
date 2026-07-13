@@ -10,7 +10,7 @@ P7E keeps the same draft asset boundary but makes the workflow reproducible by s
 3. Verify the draft release input with `release/verify-draft-release-inputs.ps1`.
 4. Create the draft release with `release/create-draft-github-release.ps1`.
 5. Use `validate_only=true` first when you only want to verify the bundle and input without creating the release.
-6. The create path must fail if the RC tag or release already exists; otherwise GitHub creates the tag at the verified release target while creating the draft.
+6. The create path must fail if the RC tag or release already exists; otherwise it pushes a new non-forced tag at the verified release target before creating the draft with `--verify-tag`.
 
 ## Tag Rule
 
@@ -20,7 +20,8 @@ P7E keeps the same draft asset boundary but makes the workflow reproducible by s
 - The workflow ref is recorded separately from the release target commit.
 - The release target is verified independently from the workflow checkout HEAD.
 - Validation-only does not require or create the RC tag.
-- Draft creation rejects an existing local or remote tag before GitHub creates the new tag at the verified target.
+- Draft creation rejects an existing local or remote tag before pushing the new tag at the verified target without force.
+- Draft releases do not materialize a missing Git ref, so the workflow explicitly pushes the tag before calling `gh release create --verify-tag`.
 
 ## Asset Boundary
 
