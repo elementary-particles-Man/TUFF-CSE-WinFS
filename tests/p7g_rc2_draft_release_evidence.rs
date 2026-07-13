@@ -28,6 +28,8 @@ mod tests {
         assert_contains(&workflow, "actions: read");
         assert!(!workflow.contains(&["contents", "write"].join(": ")));
         assert_contains(&workflow, "persist-credentials: false");
+        assert_contains(&workflow, "secrets.P7G_DRAFT_READ_TOKEN");
+        assert!(!workflow.contains("GH_TOKEN: ${{ github.token }}"));
         assert_contains(&workflow, "verify-existing-draft-release.ps1");
         assert!(!workflow.contains("create-draft-github-release.ps1"));
         assert_contains(
