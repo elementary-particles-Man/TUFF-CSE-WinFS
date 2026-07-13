@@ -164,11 +164,13 @@ mod tests {
         assert!(create_script.contains("\"create\""));
         assert!(create_script.contains("--draft"));
         assert!(create_script.contains("--prerelease"));
-        assert!(create_script.contains("--verify-tag"));
+        assert!(create_script.contains("Tag already exists locally"));
+        assert!(create_script.contains("Tag already exists remotely"));
+        assert!(create_script.contains("--target"));
         assert!(verify_script.contains("draft must be true"));
         assert!(verify_script.contains("prerelease must be true"));
         assert!(
-            verify_script.contains("release_target_commitish must match the RC tag target commit")
+            verify_script.contains("Manifest source_commit must match release_target_commitish")
         );
         assert!(manifest_script.contains("rc-draft-release-boundary"));
         assert!(manifest_script.contains("2026-07-p7c"));

@@ -66,6 +66,7 @@ if ($Input.PSObject.Properties.Name -contains "publish") {
 
 Assert-True (-not [string]::IsNullOrWhiteSpace($Input.workflow_ref)) "Missing workflow_ref."
 Assert-True (-not [string]::IsNullOrWhiteSpace($Input.release_name)) "Missing release_name."
+Assert-True ($Input.release_name -eq "TUFF-CSE-WinFS $($Input.tag_name)") "release_name must match the RC tag name."
 Assert-True (-not [string]::IsNullOrWhiteSpace($Input.artifact_manifest)) "Missing artifact_manifest."
 Assert-True (-not [string]::IsNullOrWhiteSpace($Input.checksums)) "Missing checksums."
 Assert-True (-not [string]::IsNullOrWhiteSpace($Input.release_notes)) "Missing release_notes."
@@ -88,12 +89,6 @@ Assert-True (-not [string]::IsNullOrWhiteSpace($TargetCommitish)) "Missing targe
 $ResolvedTargetCommit = git rev-parse --verify "$TargetCommitish^{commit}" 2>$null
 Assert-True ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($ResolvedTargetCommit)) "Invalid target_commitish: $TargetCommitish"
 $ResolvedTargetCommit = $ResolvedTargetCommit.Trim()
-
-$ResolvedTagCommit = git rev-parse --verify "refs/tags/$($Input.tag_name)^{commit}" 2>$null
-Assert-True ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($ResolvedTagCommit)) "Tag does not exist locally: $($Input.tag_name)"
-$ResolvedTagCommit = $ResolvedTagCommit.Trim()
-
-Assert-True ($ResolvedTargetCommit -eq $ResolvedTagCommit) "release_target_commitish must match the RC tag target commit."
 
 $ResolvedManifest = Resolve-InputPath -BaseDir $InputDir -Path $Input.artifact_manifest
 $ResolvedChecksums = Resolve-InputPath -BaseDir $InputDir -Path $Input.checksums
@@ -146,6 +141,10 @@ foreach ($asset in $Input.assets) {
 
 $ManifestData = Get-Content -Path $ResolvedManifest -Raw | ConvertFrom-Json
 Assert-True ($ManifestData.artifacts.Count -ge 1) "Manifest does not contain artifacts."
+foreach ($artifact in $ManifestData.artifacts) {
+    Assert-True ($artifact.source_commit -eq $ResolvedTargetCommit) "Manifest source_commit must match release_target_commitish."
+    Assert-True ($artifact.build_workflow -eq "public-release-artifact") "Manifest build_workflow must be public-release-artifact."
+}
 Assert-True ($ChecksumMap.ContainsKey((Split-Path -Leaf $ResolvedManifest))) "Checksum entry missing for release manifest."
 Assert-True (
     $ChecksumMap[(Split-Path -Leaf $ResolvedManifest)] -eq (Get-Sha256Hex $ResolvedManifest)

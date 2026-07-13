@@ -262,6 +262,8 @@ P7E keeps that boundary reproducible by separating the workflow ref from the rel
 - Keep GitHub Release publish deferred.
 - Keep existing tags untouched and never use force tag behavior.
 - Keep workflow execution ref separate from the release target commit.
+- Require validation-only to succeed without a tag, then reject any existing tag or release before draft creation.
+- Bind the release artifact manifest source commit to the verified release target.
 - Keep live driver install, service install, signing, KMS/HSM/CloudKMS/PKCS#11, TPM live API, and CSE crypto I/O out of scope.
 
 ## Current Phase: P4A (Local Policy / Local Admin Approval Boundary)
