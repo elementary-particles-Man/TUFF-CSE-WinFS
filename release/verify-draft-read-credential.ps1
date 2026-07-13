@@ -13,15 +13,14 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$ExpectedRc1MetadataSha256,
     [Parameter(Mandatory = $true)]
+    [long]$Rc1ReleaseId,
+    [Parameter(Mandatory = $true)]
+    [long]$Rc2ReleaseId,
+    [Parameter(Mandatory = $true)]
     [string]$OutputDirectory
 )
 
 $ErrorActionPreference = "Stop"
-$WorkflowMainCommit = "a408ec1dbbceedf1fc3a41be769c431a78ebef6e"
-$ValidateOnlyWorkflowRunId = 29280376557
-$CreateWorkflowRunId = 29280420925
-$ExpectedRc2ReleaseId = 353395540
-$ExpectedRc1ReleaseId = 350514171
 $ExpectedAssets = [ordered]@{
     "TUFF-CSE-WinFS-08d0d25-public-windows-installer.zip" = 1307789
     "V1_RC_ARTIFACT_MANIFEST.json" = 1093
@@ -273,27 +272,24 @@ function Assert-SecretScanClean {
     }
 }
 
-function Get-AssetEvidence {
-    param([string]$Directory)
+function Get-NormalizedReleaseMetadata {
+    param([object]$NormalizedRelease)
 
-    return @($ExpectedAssets.Keys | Sort-Object | ForEach-Object {
-        $path = Join-Path $Directory $_
-        [ordered]@{
-            name = $_
-            size = [long](Get-Item -Path $path).Length
-            sha256 = Get-Sha256Hex -Path $path
-        }
-    })
+    return [ordered]@{
+        assets = $NormalizedRelease.assets
+        isDraft = $NormalizedRelease.isDraft
+        isPrerelease = $NormalizedRelease.isPrerelease
+        publishedAt = $NormalizedRelease.publishedAt
+        tagName = $NormalizedRelease.tagName
+        targetCommitish = $NormalizedRelease.targetCommitish
+    }
 }
 
-function Write-HashReport {
-    param(
-        [object[]]$Assets,
-        [string]$Path
-    )
+function Get-ReleaseMetadataSha256 {
+    param([object]$NormalizedRelease)
 
-    $lines = @($Assets | ForEach-Object { "SHA256 ($($_.name)) = $($_.sha256)" })
-    Set-Content -Path $Path -Value $lines -Encoding utf8
+    $json = (Get-NormalizedReleaseMetadata -NormalizedRelease $NormalizedRelease) | ConvertTo-Json -Depth 6 -Compress
+    return Get-TextSha256Hex -Text ($json + "`n")
 }
 
 Assert-True ($Repository -match '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') "Invalid repository."
@@ -302,6 +298,13 @@ Assert-True ($ExpectedTargetCommitish -match '^[0-9a-f]{40}$') "Invalid target c
 Assert-True ($ExpectedRc1MetadataSha256 -match '^[0-9a-f]{64}$') "Invalid RC1 metadata hash."
 Assert-GhTokenPrefix
 
+$userOutput = Invoke-Checked -Command "gh" -CommandArgs @("api", "user")
+Assert-True (-not [string]::IsNullOrWhiteSpace(($userOutput -join "`n"))) "GET /user failed."
+
+$repositoryOutput = Invoke-Checked -Command "gh" -CommandArgs @("api", "repos/$Repository")
+$repository = ($repositoryOutput -join "`n") | ConvertFrom-Json
+Assert-True ($repository.full_name -eq $Repository) "Repository access verification failed."
+
 $tagLines = @(Invoke-Checked -Command "git" -CommandArgs @("ls-remote", "--tags", "origin", "refs/tags/$TagName", "refs/tags/$TagName^{}"))
 Assert-True ($tagLines.Count -ge 1) "Remote tag does not exist."
 $peeledLine = @($tagLines | Where-Object { $_ -match '\^\{\}$' } | Select-Object -First 1)
@@ -309,24 +312,34 @@ $tagLine = if ($peeledLine.Count -eq 1) { $peeledLine[0] } else { $tagLines[0] }
 $tagTarget = ($tagLine -split "\s+")[0].ToLowerInvariant()
 Assert-True ($tagTarget -eq $ExpectedTargetCommitish) "Remote tag target mismatch."
 
-$fixedRc2 = Get-FixedRelease -ReleaseId $ExpectedRc2ReleaseId -ExpectedTag $TagName
-$release = $fixedRc2.normalized
-Assert-True ($release.tagName -eq $TagName) "Release tag mismatch."
-Assert-True ($release.name -eq $ReleaseName) "Release name mismatch."
-Assert-True ($release.targetCommitish -eq $ExpectedTargetCommitish) "Release target mismatch."
-Assert-True ($release.isDraft -eq $true) "Release must remain draft."
-Assert-True ($release.isPrerelease -eq $true) "Release must remain prerelease."
-Assert-True ($null -eq $release.publishedAt) "Release must remain unpublished."
-Assert-True ($release.assets.Count -eq $ExpectedAssets.Count) "Unexpected release asset count."
+$fixedRc1 = Get-FixedRelease -ReleaseId $Rc1ReleaseId -ExpectedTag "v1.0.0-rc1"
+$fixedRc2 = Get-FixedRelease -ReleaseId $Rc2ReleaseId -ExpectedTag $TagName
 
-$releaseAssetNames = @($release.assets | ForEach-Object name | Sort-Object)
+$rc1 = $fixedRc1.normalized
+$rc2 = $fixedRc2.normalized
+Assert-True ($rc1.tagName -eq "v1.0.0-rc1") "RC1 tag mismatch."
+Assert-True ($rc1.name -eq "TUFF-CSE-WinFS v1.0.0-rc1") "RC1 release name mismatch."
+Assert-True ($rc1.targetCommitish -eq "9cecb2fe09789176491d82e917b0cd4d694e68f6") "RC1 target mismatch."
+Assert-True ($rc1.isDraft -eq $true) "RC1 must remain draft."
+Assert-True ($rc1.isPrerelease -eq $true) "RC1 must remain prerelease."
+Assert-True ($null -eq $rc1.publishedAt) "RC1 must remain unpublished."
+
+Assert-True ($rc2.tagName -eq $TagName) "RC2 tag mismatch."
+Assert-True ($rc2.name -eq $ReleaseName) "RC2 release name mismatch."
+Assert-True ($rc2.targetCommitish -eq $ExpectedTargetCommitish) "RC2 target mismatch."
+Assert-True ($rc2.isDraft -eq $true) "RC2 must remain draft."
+Assert-True ($rc2.isPrerelease -eq $true) "RC2 must remain prerelease."
+Assert-True ($null -eq $rc2.publishedAt) "RC2 must remain unpublished."
+Assert-True ($rc2.assets.Count -eq $ExpectedAssets.Count) "Unexpected release asset count."
+
+$releaseAssetNames = @($rc2.assets | ForEach-Object name | Sort-Object)
 $expectedAssetNames = @($ExpectedAssets.Keys | Sort-Object)
 Assert-True (($releaseAssetNames -join "`n") -eq ($expectedAssetNames -join "`n")) "Unexpected release assets."
-foreach ($asset in $release.assets) {
+foreach ($asset in $rc2.assets) {
     Assert-True ([long]$asset.size -eq [long]$ExpectedAssets[$asset.name]) "Unexpected release asset size."
 }
 
-$temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) "tuff-cse-winfs-p7g-$([guid]::NewGuid().ToString('N'))"
+$temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) "tuff-cse-winfs-p7h-$([guid]::NewGuid().ToString('N'))"
 $sourceDirectory = Join-Path $temporaryRoot "source"
 $releaseDirectory = Join-Path $temporaryRoot "release"
 $extractDirectory = Join-Path $temporaryRoot "extracted"
@@ -337,7 +350,7 @@ try {
         "run", "download", "$ArtifactRunId", "--repo", $Repository,
         "--name", "public-release-artifact-bundle", "--dir", $sourceDirectory
     ) | Out-Null
-    foreach ($asset in $fixedRc2.rest.assets) {
+    foreach ($asset in $rc2.assets) {
         Assert-True ($ExpectedAssets.Contains($asset.name)) "Unexpected release asset."
         Save-ReleaseAsset -ApiUrl $asset.url -Path (Join-Path $releaseDirectory $asset.name)
     }
@@ -362,60 +375,37 @@ try {
         -ZipPath (Join-Path $releaseDirectory "TUFF-CSE-WinFS-08d0d25-public-windows-installer.zip") `
         -ExtractDirectory $extractDirectory
 
-    $fixedRc1 = Get-FixedRelease -ReleaseId $ExpectedRc1ReleaseId -ExpectedTag "v1.0.0-rc1"
-    $rc1ForHash = [ordered]@{
-        assets = $fixedRc1.normalized.assets
-        isDraft = $fixedRc1.normalized.isDraft
-        isPrerelease = $fixedRc1.normalized.isPrerelease
-        publishedAt = $fixedRc1.normalized.publishedAt
-        tagName = $fixedRc1.normalized.tagName
-        targetCommitish = $fixedRc1.normalized.targetCommitish
-    }
-    $rc1Json = $rc1ForHash | ConvertTo-Json -Depth 6 -Compress
-    $rc1Hash = Get-TextSha256Hex -Text ($rc1Json + "`n")
-    Assert-True ($rc1Hash -eq $ExpectedRc1MetadataSha256) "RC1 metadata SHA256 mismatch."
+    $rc1MetadataSha256 = Get-ReleaseMetadataSha256 -NormalizedRelease $rc1
+    $rc2MetadataSha256 = Get-ReleaseMetadataSha256 -NormalizedRelease $rc2
+    Assert-True ($rc1MetadataSha256 -eq $ExpectedRc1MetadataSha256) "RC1 metadata SHA256 mismatch."
 
-    $releaseEvidence = Get-AssetEvidence -Directory $releaseDirectory
-    $sourceEvidence = Get-AssetEvidence -Directory $sourceDirectory
-    $verificationRunId = if ($env:GITHUB_RUN_ID -match '^[1-9][0-9]*$') { [long]$env:GITHUB_RUN_ID } else { $null }
     $evidence = [ordered]@{
-        schema_version = "2026-07-p7g"
         repository = $Repository
-        tag_name = $TagName
-        tag_target_commit = $tagTarget
-        release_name = $release.name
-        release_target_commitish = $release.targetCommitish
-        is_draft = [bool]$release.isDraft
-        is_prerelease = [bool]$release.isPrerelease
-        published_at = $release.publishedAt
-        workflow_main_commit = $WorkflowMainCommit
-        source_main_commit = $ExpectedTargetCommitish
-        artifact_workflow_run_id = [long]$ArtifactRunId
-        validate_only_workflow_run_id = [long]$ValidateOnlyWorkflowRunId
-        create_workflow_run_id = [long]$CreateWorkflowRunId
-        verification_workflow_run_id = $verificationRunId
-        assets = $releaseEvidence
-        source_artifact_assets = $sourceEvidence
+        credential_class = "fine-grained-personal-access-token"
+        credential_prefix_verified = $true
+        repository_access_verified = $true
+        contents_read_verified = $true
+        actions_read_verified = $true
+        rc1_draft_read_verified = $true
+        rc2_draft_read_verified = $true
+        release_assets_read_verified = $true
+        source_artifact_read_verified = $true
         byte_identity_verified = $true
-        manifest_verified = $true
-        checksums_verified = $true
-        secret_scan_clean = $true
-        rc1_metadata_sha256 = $rc1Hash
+        rc1_metadata_sha256 = $rc1MetadataSha256
+        rc2_metadata_sha256 = $rc2MetadataSha256
+        mutation_attempted = $false
         generated_at_utc = [DateTimeOffset]::UtcNow.ToString("o")
     }
 
     New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
-    $evidencePath = Join-Path $OutputDirectory "V1_RC2_DRAFT_RELEASE_EVIDENCE.json"
-    $releaseHashPath = Join-Path $OutputDirectory "V1_RC2_RELEASE_ASSET_SHA256.txt"
-    $sourceHashPath = Join-Path $OutputDirectory "V1_RC2_SOURCE_ARTIFACT_SHA256.txt"
+    $evidencePath = Join-Path $OutputDirectory "P7H_DRAFT_READ_CREDENTIAL_EVIDENCE.json"
     $evidenceJson = $evidence | ConvertTo-Json -Depth 8
     Set-Content -Path $evidencePath -Value $evidenceJson -Encoding utf8
-    Write-HashReport -Assets $releaseEvidence -Path $releaseHashPath
-    Write-HashReport -Assets $sourceEvidence -Path $sourceHashPath
 
-    $schemaPath = Join-Path $PSScriptRoot "V1_RC_DRAFT_RELEASE_EVIDENCE.schema.json"
+    $schemaPath = Join-Path $PSScriptRoot "P7H_DRAFT_READ_CREDENTIAL_EVIDENCE.schema.json"
     Assert-True ($evidenceJson | Test-Json -SchemaFile $schemaPath) "Evidence JSON does not match the schema."
-    Write-Host "Existing draft release verification succeeded."
+    Assert-True ($evidenceJson -notmatch 'github_pat_|P7G_DRAFT_READ_|P7H_DRAFT_READ_') "Credential marker leaked into evidence."
+    Write-Host "Draft read credential verification succeeded."
 }
 finally {
     if (Test-Path -Path $temporaryRoot) {
