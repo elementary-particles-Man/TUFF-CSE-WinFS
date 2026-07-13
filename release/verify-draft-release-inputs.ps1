@@ -85,9 +85,15 @@ $TargetCommitish = if ($Input.PSObject.Properties.Name -contains "release_target
 
 Assert-True (-not [string]::IsNullOrWhiteSpace($TargetCommitish)) "Missing target_commitish."
 
-$HeadCommit = (git rev-parse HEAD).Trim()
-$ResolvedTargetCommit = (git rev-parse --verify "$TargetCommitish^{commit}").Trim()
-Assert-True ($ResolvedTargetCommit -eq $HeadCommit) "target_commitish must match the current HEAD commit."
+$ResolvedTargetCommit = git rev-parse --verify "$TargetCommitish^{commit}" 2>$null
+Assert-True ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($ResolvedTargetCommit)) "Invalid target_commitish: $TargetCommitish"
+$ResolvedTargetCommit = $ResolvedTargetCommit.Trim()
+
+$ResolvedTagCommit = git rev-parse --verify "refs/tags/$($Input.tag_name)^{commit}" 2>$null
+Assert-True ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($ResolvedTagCommit)) "Tag does not exist locally: $($Input.tag_name)"
+$ResolvedTagCommit = $ResolvedTagCommit.Trim()
+
+Assert-True ($ResolvedTargetCommit -eq $ResolvedTagCommit) "release_target_commitish must match the RC tag target commit."
 
 $ResolvedManifest = Resolve-InputPath -BaseDir $InputDir -Path $Input.artifact_manifest
 $ResolvedChecksums = Resolve-InputPath -BaseDir $InputDir -Path $Input.checksums

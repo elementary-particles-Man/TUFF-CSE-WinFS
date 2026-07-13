@@ -167,7 +167,9 @@ mod tests {
         assert!(create_script.contains("--verify-tag"));
         assert!(verify_script.contains("draft must be true"));
         assert!(verify_script.contains("prerelease must be true"));
-        assert!(verify_script.contains("target_commitish must match the current HEAD commit"));
+        assert!(
+            verify_script.contains("release_target_commitish must match the RC tag target commit")
+        );
         assert!(manifest_script.contains("rc-draft-release-boundary"));
         assert!(manifest_script.contains("2026-07-p7c"));
         assert!(release_verify.contains("Checksum entry missing for release manifest."));
