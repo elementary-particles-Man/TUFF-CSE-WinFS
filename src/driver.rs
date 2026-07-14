@@ -79,18 +79,10 @@ pub fn build_driver_install_plan(package: &DriverPackage) -> Result<DriverInstal
         ));
     }
 
-    if package
-        .sys_path
-        .as_ref()
-        .map_or(true, |path| !path.is_file())
-    {
+    if package.sys_path.as_ref().map_or(true, |path| !path.is_file()) {
         return Err(anyhow!("Driver package SYS file is missing."));
     }
-    if package
-        .cat_path
-        .as_ref()
-        .map_or(true, |path| !path.is_file())
-    {
+    if package.cat_path.as_ref().map_or(true, |path| !path.is_file()) {
         return Err(anyhow!("Driver package CAT file is missing."));
     }
 
@@ -162,8 +154,6 @@ pub fn install_driver_package_live(package: &DriverPackage) -> DriverInstallResu
             detail
         };
 
-        DriverInstallResult::Error(format!(
-            "pnputil.exe driver installation failed: {detail}"
-        ))
+        DriverInstallResult::Error(format!("pnputil.exe driver installation failed: {detail}"))
     }
 }
