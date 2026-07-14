@@ -1,9 +1,9 @@
 name: P8A Update P6Z Gate
 
 on:
-  push:
+  pull_request:
     branches:
-      - feature/p8a-live-driver-install-boundary
+      - main
 
 permissions:
   contents: write
@@ -24,55 +24,41 @@ jobs:
 
           path = Path("tests/p6z_v1_rc_release_gate.rs")
           text = path.read_text()
-          old = '''    #[test]
-              fn v1_rc_release_gate_source_tree_stays_free_of_live_integrations() {
-                  let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-                  let src_root = repo_root.join("src");
-                  assert_no_forbidden_strings(
-                      &src_root,
-                      &[
-                          "CloudKmsClient",
-                          "Pkcs11Session",
-                          "pnputil",
-                          "AnchorProvider",
-                          "RawLba",
-                          "partition resize",
-                          "KmsSecret",
-                          "HsmSecret",
-                      ],
-                  );
-              }
-          '''
-          old = old.replace("              ", "    ")
-          new = '''    #[test]
-              fn v1_rc_gate_keeps_non_p8a_live_integrations_closed() {
-                  let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-                  let src_root = repo_root.join("src");
-                  assert_no_forbidden_strings(
-                      &src_root,
-                      &[
-                          "CloudKmsClient",
-                          "Pkcs11Session",
-                          "AnchorProvider",
-                          "RawLba",
-                          "partition resize",
-                          "KmsSecret",
-                          "HsmSecret",
-                      ],
-                  );
+          start_marker = "    #[test]\n    fn v1_rc_release_gate_source_tree_stays_free_of_live_integrations() {"
+          start = text.find(start_marker)
+          if start < 0:
+              raise SystemExit("expected P6Z gate function not found")
+          end = text.find("\n    }\n}", start)
+          if end < 0:
+              raise SystemExit("P6Z gate function terminator not found")
+          end += len("\n    }")
 
-                  let driver_source = fs::read_to_string(src_root.join("driver.rs")).unwrap();
-                  let install_source = fs::read_to_string(src_root.join("install.rs")).unwrap();
-                  assert!(driver_source.contains("pnputil.exe"));
-                  assert!(install_source.contains("live_driver_install"));
-                  assert!(install_source.contains("install_driver_package_live"));
-                  assert_eq!(tuff_cse_winfs::P8A_LIVE_DRIVER_INSTALL_PHASE, "P8A");
-              }
-          '''
-          new = new.replace("              ", "    ")
-          if old not in text:
-              raise SystemExit("expected P6Z gate block not found")
-          path.write_text(text.replace(old, new))
+          replacement = '''    #[test]
+          fn v1_rc_gate_keeps_non_p8a_live_integrations_closed() {
+              let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+              let src_root = repo_root.join("src");
+              assert_no_forbidden_strings(
+                  &src_root,
+                  &[
+                      "CloudKmsClient",
+                      "Pkcs11Session",
+                      "AnchorProvider",
+                      "RawLba",
+                      "partition resize",
+                      "KmsSecret",
+                      "HsmSecret",
+                  ],
+              );
+
+              let driver_source = fs::read_to_string(src_root.join("driver.rs")).unwrap();
+              let install_source = fs::read_to_string(src_root.join("install.rs")).unwrap();
+              assert!(driver_source.contains("pnputil.exe"));
+              assert!(install_source.contains("live_driver_install"));
+              assert!(install_source.contains("install_driver_package_live"));
+              assert_eq!(tuff_cse_winfs::P8A_LIVE_DRIVER_INSTALL_PHASE, "P8A");
+          }'''.replace("          ", "    ")
+
+          path.write_text(text[:start] + replacement + text[end:])
 
       - name: Commit gate update
         shell: bash
