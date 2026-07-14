@@ -472,3 +472,17 @@ P7B adds a Windows workflow that builds the public release bundle and validates 
 - Verify the public release bundle.
 - Upload the bundle as a workflow artifact.
 - Do not publish a GitHub Release.
+### 12.9 P8A Explicit Windows Driver Install Boundary
+P8A makes live Windows driver installation explicit while keeping the default path non-mutating.
+- `TuffCseWinFsSetup install` accepts `--live-driver-install` only with `--driver-package`.
+- `DriverPackageState::DistributionCandidate` remains the only live install input.
+- `build_driver_install_plan` canonicalizes the INF path and builds a fixed `pnputil.exe /add-driver <INF> /install` command.
+- Non-Windows hosts fail closed and CI does not execute live driver installation.
+
+### 12.10 P8B Explicit Windows Driver Uninstall Boundary
+P8B mirrors P8A for uninstall and keeps the default path non-mutating.
+- `TuffCseWinFsSetup uninstall` accepts `--live-driver-uninstall` only with `--driver-package`.
+- `DriverPackageState::DistributionCandidate` remains the only live uninstall input.
+- `build_driver_uninstall_plan` canonicalizes the INF path and `execute_driver_uninstall` invokes `DiUninstallDriverW` with `Flags = 0`.
+- `NeedReboot` is captured and surfaced as a distinct success-with-reboot-required result.
+- Non-Windows hosts fail closed and CI does not perform live driver uninstall.

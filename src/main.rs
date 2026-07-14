@@ -41,6 +41,14 @@ enum Commands {
         /// Force uninstallation even if unsafe
         #[arg(short, long)]
         force: bool,
+
+        /// Path to the driver package
+        #[arg(short, long)]
+        driver_package: Option<PathBuf>,
+
+        /// Explicitly execute DiUninstallDriverW for a distribution-candidate driver package
+        #[arg(long, requires = "driver_package")]
+        live_driver_uninstall: bool,
     },
 }
 
@@ -69,8 +77,15 @@ fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::Uninstall { force } => {
-            if let Err(e) = uninstall::run_uninstall(force) {
+        Commands::Uninstall {
+            force,
+            driver_package,
+            live_driver_uninstall,
+        } => {
+            let options = uninstall::UninstallOptions {
+                live_driver_uninstall,
+            };
+            if let Err(e) = uninstall::run_uninstall_with_options(force, driver_package, options) {
                 eprintln!("Uninstallation failed: {}", e);
                 std::process::exit(1);
             }

@@ -7,11 +7,11 @@ use std::process::Command;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DriverPackageState {
-    SourceSkeleton,        // INF exists, but SYS/CAT might be missing (P1A)
-    BuildReadySource,      // INF, vcxproj, sln exist (P1B)
-    BuiltUnsigned,         // INF, SYS exist, but CAT missing
-    DistributionCandidate, // INF, SYS, and CAT all exist (P1B+)
-    Invalid,               // No root or no INF
+    SourceSkeleton,
+    BuildReadySource,
+    BuiltUnsigned,
+    DistributionCandidate,
+    Invalid,
 }
 
 pub struct DriverPackage {
@@ -27,6 +27,12 @@ pub struct DriverInstallPlan {
     pub executable: OsString,
     pub arguments: Vec<OsString>,
     pub inf_path: PathBuf,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct DriverUninstallPlan {
+    pub package_root: PathBuf,
+    pub canonical_inf_path: PathBuf,
 }
 
 pub fn validate_driver_package<P: AsRef<Path>>(path: P) -> Result<DriverPackage> {
@@ -74,8 +80,7 @@ pub fn validate_driver_package<P: AsRef<Path>>(path: P) -> Result<DriverPackage>
 pub fn build_driver_install_plan(package: &DriverPackage) -> Result<DriverInstallPlan> {
     if package.state != DriverPackageState::DistributionCandidate {
         return Err(anyhow!(
-            "Live driver installation requires a distribution candidate package (INF/SYS/CAT). Current state: {:?}",
-            package.state
+            "Live driver installation requires a distribution candidate package."
         ));
     }
 
@@ -86,6 +91,7 @@ pub fn build_driver_install_plan(package: &DriverPackage) -> Result<DriverInstal
     {
         return Err(anyhow!("Driver package SYS file is missing."));
     }
+
     if package
         .cat_path
         .as_ref()
@@ -163,5 +169,91 @@ pub fn install_driver_package_live(package: &DriverPackage) -> DriverInstallResu
         };
 
         DriverInstallResult::Error(format!("pnputil.exe driver installation failed: {detail}"))
+    }
+}
+
+pub fn build_driver_uninstall_plan(package: &DriverPackage) -> Result<DriverUninstallPlan> {
+    if package.state != DriverPackageState::DistributionCandidate {
+        return Err(anyhow!(
+            "Live driver uninstall requires a distribution candidate package."
+        ));
+    }
+
+    if package
+        .sys_path
+        .as_ref()
+        .map_or(true, |path| !path.is_file())
+    {
+        return Err(anyhow!("Driver package SYS file is missing."));
+    }
+
+    if package
+        .cat_path
+        .as_ref()
+        .map_or(true, |path| !path.is_file())
+    {
+        return Err(anyhow!("Driver package CAT file is missing."));
+    }
+
+    let canonical_inf_path = package
+        .inf_path
+        .canonicalize()
+        .map_err(|error| anyhow!("Failed to resolve driver INF path: {error}"))?;
+
+    Ok(DriverUninstallPlan {
+        package_root: package.root.clone(),
+        canonical_inf_path,
+    })
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum DriverUninstallResult {
+    Success,
+    SuccessWithRebootRequired,
+    Error {
+        windows_error_code: u32,
+        message: String,
+    },
+}
+
+#[cfg(windows)]
+pub fn execute_driver_uninstall(plan: &DriverUninstallPlan) -> DriverUninstallResult {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Devices::DeviceAndDriverInstallation::DiUninstallDriverW;
+    use windows_sys::Win32::Foundation::{GetLastError, HWND};
+
+    let inf_path = plan
+        .canonical_inf_path
+        .as_os_str()
+        .encode_wide()
+        .chain(Some(0))
+        .collect::<Vec<u16>>();
+    let mut need_reboot: i32 = 0;
+
+    let ok = unsafe { DiUninstallDriverW(0 as HWND, inf_path.as_ptr(), 0, &mut need_reboot) };
+    if ok == 0 {
+        let windows_error_code = unsafe { GetLastError() };
+        let system_message = std::io::Error::from_raw_os_error(windows_error_code as i32);
+        return DriverUninstallResult::Error {
+            windows_error_code,
+            message: format!(
+                "DiUninstallDriverW failed for {:?}: {}",
+                plan.canonical_inf_path, system_message
+            ),
+        };
+    }
+
+    if need_reboot != 0 {
+        DriverUninstallResult::SuccessWithRebootRequired
+    } else {
+        DriverUninstallResult::Success
+    }
+}
+
+#[cfg(not(windows))]
+pub fn execute_driver_uninstall(_plan: &DriverUninstallPlan) -> DriverUninstallResult {
+    DriverUninstallResult::Error {
+        windows_error_code: 0,
+        message: "Live driver uninstall is supported only on Windows.".to_string(),
     }
 }
