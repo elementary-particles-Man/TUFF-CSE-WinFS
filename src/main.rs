@@ -18,13 +18,17 @@ enum Commands {
         #[arg(short, long)]
         policy: PathBuf,
 
-        /// Path to the driver package (optional in P0)
+        /// Path to the driver package
         #[arg(short, long)]
         driver_package: Option<PathBuf>,
 
         /// Perform a dry-run without making changes
-        #[arg(long)]
+        #[arg(long, conflicts_with = "live_driver_install")]
         dry_run: bool,
+
+        /// Explicitly execute pnputil.exe to install a distribution-candidate driver package
+        #[arg(long, requires = "driver_package")]
+        live_driver_install: bool,
     },
     /// Verify the installation status
     Verify {
@@ -48,8 +52,13 @@ fn main() {
             policy,
             driver_package,
             dry_run,
+            live_driver_install,
         } => {
-            if let Err(e) = install::run_install(policy, driver_package, dry_run) {
+            let options = install::InstallOptions {
+                dry_run,
+                live_driver_install,
+            };
+            if let Err(e) = install::run_install_with_options(policy, driver_package, options) {
                 eprintln!("Installation failed: {}", e);
                 std::process::exit(1);
             }
