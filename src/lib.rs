@@ -92,6 +92,27 @@ pub const P7A_PUBLIC_INSTALLER_RESERVED_ACTIONS: &[&str] = &[
     "TPM live API",
     "KMS/HSM live integration",
 ];
+pub const P8B_LIVE_DRIVER_UNINSTALL_PHASE: &str = "P8B";
+pub const P8B_LIVE_DRIVER_UNINSTALL_BOUNDARY: &str = "Explicit Windows Driver Uninstall Boundary";
+pub const P8B_LIVE_DRIVER_UNINSTALL_REQUIREMENTS: &[&str] = &[
+    "Windows host",
+    "explicit --live-driver-uninstall flag",
+    "distribution candidate driver package",
+    "INF/SYS/CAT package state",
+    "canonical INF path",
+    "DiUninstallDriverW success",
+    "NeedReboot result capture",
+];
+pub const P8B_LIVE_DRIVER_UNINSTALL_EXCLUSIONS: &[&str] = &[
+    "automatic driver uninstall",
+    "service remove",
+    "device disable/remove",
+    "data unsealing",
+    "management-directory deletion",
+    "CSE crypto I/O",
+    "TPM live API",
+    "KMS/HSM live integration",
+];
 pub const P7B_PUBLIC_RELEASE_PHASE: &str = "P7B";
 pub const P7B_PUBLIC_RELEASE_BOUNDARY: &str =
     "Public Release Artifact Checksum Draft Release Boundary";

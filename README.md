@@ -271,6 +271,24 @@ P7F proves that flow with the fixed RC2 tag and draft release. P7G adds an indep
 - Bind the release artifact manifest source commit to the verified release target.
 - Keep live driver install, service install, signing, KMS/HSM/CloudKMS/PKCS#11, TPM live API, and CSE crypto I/O out of scope.
 
+## Current Phase: P8A (Explicit Windows Driver Install Boundary)
+
+P8A makes live Windows driver installation explicit. The default path remains non-mutating, and `pnputil.exe` runs only when `--live-driver-install` is supplied with a distribution-candidate driver package.
+
+### P8A Highlights
+- `src/install.rs` validates the driver package and requires `--driver-package` for live installation.
+- `src/driver.rs` builds a fixed `pnputil.exe /add-driver <INF> /install` plan for distribution-candidate packages.
+- `tests/p8a_live_driver_install_boundary.rs` keeps the boundary non-mutating in CI.
+
+## Current Phase: P8B (Explicit Windows Driver Uninstall Boundary)
+
+P8B mirrors P8A for uninstall. The default path remains non-mutating, and `DiUninstallDriverW` runs only when `--live-driver-uninstall` is supplied with a distribution-candidate driver package on Windows.
+
+### P8B Highlights
+- `src/uninstall.rs` validates the package, builds a pure uninstall plan, and keeps the default path non-mutating.
+- `src/driver.rs` canonicalizes the INF path and executes `DiUninstallDriverW` only on Windows.
+- `tests/p8b_live_driver_uninstall_boundary.rs` covers plan validation, non-mutating CLI behavior, and the non-Windows fail-closed path.
+
 ## Current Phase: P4A (Local Policy / Local Admin Approval Boundary)
 
 The project is currently in the **P4A** phase. This stage establishes the model and structural boundary for local administrator approvals.
