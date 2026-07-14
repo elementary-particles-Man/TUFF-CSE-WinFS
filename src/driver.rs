@@ -1,7 +1,11 @@
 use anyhow::{anyhow, Result};
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, PartialEq, Eq)]
+#[cfg(windows)]
+use std::process::Command;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DriverPackageState {
     SourceSkeleton,        // INF exists, but SYS/CAT might be missing (P1A)
     BuildReadySource,      // INF, vcxproj, sln exist (P1B)
@@ -16,6 +20,13 @@ pub struct DriverPackage {
     pub sys_path: Option<PathBuf>,
     pub cat_path: Option<PathBuf>,
     pub state: DriverPackageState,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct DriverInstallPlan {
+    pub executable: OsString,
+    pub arguments: Vec<OsString>,
+    pub inf_path: PathBuf,
 }
 
 pub fn validate_driver_package<P: AsRef<Path>>(path: P) -> Result<DriverPackage> {
@@ -60,6 +71,38 @@ pub fn validate_driver_package<P: AsRef<Path>>(path: P) -> Result<DriverPackage>
     })
 }
 
+pub fn build_driver_install_plan(package: &DriverPackage) -> Result<DriverInstallPlan> {
+    if package.state != DriverPackageState::DistributionCandidate {
+        return Err(anyhow!(
+            "Live driver installation requires a distribution candidate package (INF/SYS/CAT). Current state: {:?}",
+            package.state
+        ));
+    }
+
+    if package.sys_path.as_ref().is_none_or(|path| !path.is_file()) {
+        return Err(anyhow!("Driver package SYS file is missing."));
+    }
+    if package.cat_path.as_ref().is_none_or(|path| !path.is_file()) {
+        return Err(anyhow!("Driver package CAT file is missing."));
+    }
+
+    let inf_path = package
+        .inf_path
+        .canonicalize()
+        .map_err(|error| anyhow!("Failed to resolve driver INF path: {error}"))?;
+
+    Ok(DriverInstallPlan {
+        executable: OsString::from("pnputil.exe"),
+        arguments: vec![
+            OsString::from("/add-driver"),
+            inf_path.as_os_str().to_owned(),
+            OsString::from("/install"),
+        ],
+        inf_path,
+    })
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub enum DriverInstallResult {
     Success,
     PendingDriverPhase,
@@ -67,6 +110,50 @@ pub enum DriverInstallResult {
 }
 
 pub fn install_driver_package(_package: &DriverPackage) -> DriverInstallResult {
-    // P0/P1A stub
     DriverInstallResult::PendingDriverPhase
+}
+
+pub fn install_driver_package_live(package: &DriverPackage) -> DriverInstallResult {
+    let plan = match build_driver_install_plan(package) {
+        Ok(plan) => plan,
+        Err(error) => return DriverInstallResult::Error(error.to_string()),
+    };
+
+    #[cfg(not(windows))]
+    {
+        let _ = plan;
+        DriverInstallResult::Error(
+            "Live driver installation is supported only on Windows.".to_string(),
+        )
+    }
+
+    #[cfg(windows)]
+    {
+        let output = match Command::new(&plan.executable)
+            .args(&plan.arguments)
+            .output()
+        {
+            Ok(output) => output,
+            Err(error) => {
+                return DriverInstallResult::Error(format!(
+                    "Failed to execute pnputil.exe: {error}"
+                ));
+            }
+        };
+
+        if output.status.success() {
+            return DriverInstallResult::Success;
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let detail = if !stderr.is_empty() { stderr } else { stdout };
+        let detail = if detail.is_empty() {
+            format!("exit status {}", output.status)
+        } else {
+            detail
+        };
+
+        DriverInstallResult::Error(format!("pnputil.exe driver installation failed: {detail}"))
+    }
 }
