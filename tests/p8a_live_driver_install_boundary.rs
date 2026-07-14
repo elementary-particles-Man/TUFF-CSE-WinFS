@@ -1,15 +1,14 @@
 use std::ffi::OsString;
 use std::fs;
+use tempfile::tempdir;
 use tuff_cse_winfs::driver::{
     build_driver_install_plan, install_driver_package, install_driver_package_live,
     validate_driver_package, DriverInstallResult, DriverPackageState,
 };
-use tempfile::tempdir;
 
 fn write_package(include_sys: bool, include_cat: bool) -> tempfile::TempDir {
     let dir = tempdir().expect("tempdir");
-    fs::write(dir.path().join("tuffcsewinfs.inf"), b"[Version]\n")
-        .expect("write inf");
+    fs::write(dir.path().join("tuffcsewinfs.inf"), b"[Version]\n").expect("write inf");
     if include_sys {
         fs::write(dir.path().join("tuffcsewinfs.sys"), b"driver").expect("write sys");
     }
