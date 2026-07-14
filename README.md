@@ -289,6 +289,15 @@ P8B mirrors P8A for uninstall. The default path remains non-mutating, and `DiUni
 - `src/driver.rs` canonicalizes the INF path and executes `DiUninstallDriverW` only on Windows.
 - `tests/p8b_live_driver_uninstall_boundary.rs` covers plan validation, non-mutating CLI behavior, and the non-Windows fail-closed path.
 
+## Current Phase: P8C (Read-Only Windows Driver State Verification Boundary)
+
+P8C keeps verification read-only. `verify` now queries SCM state for the fixed `tuffcsewinfs` service and compares it against the kernel-driver, demand-start, `System32\drivers\tuffcsewinfs.sys` boundary.
+
+### P8C Highlights
+- `src/driver_state.rs` performs read-only SCM queries only and fail-closes on non-Windows.
+- `src/verify.rs` reports the read-only driver state query before the legacy `PENDING_DRIVER_PHASE` marker.
+- `tests/p8c_read_only_driver_state_verification_boundary.rs` covers the expected path layout and source boundary.
+
 ## Current Phase: P4A (Local Policy / Local Admin Approval Boundary)
 
 The project is currently in the **P4A** phase. This stage establishes the model and structural boundary for local administrator approvals.

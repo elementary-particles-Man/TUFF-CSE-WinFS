@@ -32,4 +32,4 @@ thiserror = "1"
 regex = "1"
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Devices_DeviceAndDriverInstallation"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Devices_DeviceAndDriverInstallation", "Win32_System_Services", "Win32_System_SystemInformation"] }

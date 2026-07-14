@@ -12,6 +12,7 @@ pub mod domain_principal;
 pub mod domain_recovery;
 pub mod domain_recovery_enforcement;
 pub mod driver;
+pub mod driver_state;
 pub mod enterprise_authority;
 pub mod enterprise_provider;
 pub mod enterprise_provider_enforcement;
@@ -112,6 +113,26 @@ pub const P8B_LIVE_DRIVER_UNINSTALL_EXCLUSIONS: &[&str] = &[
     "CSE crypto I/O",
     "TPM live API",
     "KMS/HSM live integration",
+];
+pub const P8C_READ_ONLY_DRIVER_STATE_PHASE: &str = "P8C";
+pub const P8C_READ_ONLY_DRIVER_STATE_BOUNDARY: &str =
+    "Read-Only Windows Driver State Verification Boundary";
+pub const P8C_READ_ONLY_DRIVER_STATE_REQUIREMENTS: &[&str] = &[
+    "SCM read-only query only",
+    "SERVICE_KERNEL_DRIVER",
+    "SERVICE_DEMAND_START",
+    r"System32\drivers\tuffcsewinfs.sys",
+    "tuffcsewinfs service name",
+];
+pub const P8C_READ_ONLY_DRIVER_STATE_EXCLUSIONS: &[&str] = &[
+    "service start",
+    "service stop",
+    "service install",
+    "service remove",
+    "service reconfigure",
+    "driver device mutation",
+    "live driver install",
+    "live driver uninstall",
 ];
 pub const P7B_PUBLIC_RELEASE_PHASE: &str = "P7B";
 pub const P7B_PUBLIC_RELEASE_BOUNDARY: &str =

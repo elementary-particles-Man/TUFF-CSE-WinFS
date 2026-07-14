@@ -486,3 +486,9 @@ P8B mirrors P8A for uninstall and keeps the default path non-mutating.
 - `build_driver_uninstall_plan` canonicalizes the INF path and `execute_driver_uninstall` invokes `DiUninstallDriverW` with `Flags = 0`.
 - `NeedReboot` is captured and surfaced as a distinct success-with-reboot-required result.
 - Non-Windows hosts fail closed and CI does not perform live driver uninstall.
+### 12.11 P8C Read-Only Windows Driver State Verification Boundary
+P8C keeps verify read-only and SCM queries only.
+- `TuffCseWinFsSetup verify` queries the fixed `tuffcsewinfs` service name without any service mutation APIs.
+- Expected target is `SERVICE_KERNEL_DRIVER`, `SERVICE_DEMAND_START`, `System32\drivers\tuffcsewinfs.sys`.
+- `driver_state.rs` uses `OpenSCManagerW`, `OpenServiceW`, `QueryServiceConfigW`, and `QueryServiceStatusEx`, then preserves the legacy `PENDING_DRIVER_PHASE` marker.
+- Non-Windows hosts fail closed and do not attempt SCM mutation or driver state changes.
