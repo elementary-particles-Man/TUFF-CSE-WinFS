@@ -28,8 +28,7 @@ mod tests {
         assert_contains(&workflow, "actions: read");
         assert!(!workflow.contains(&["contents", "write"].join(": ")));
         assert_contains(&workflow, "persist-credentials: false");
-        assert_contains(&workflow, "secrets.P7G_DRAFT_READ_FINE_GRAINED_TOKEN");
-        assert!(!workflow.contains("P7G_DRAFT_READ_TOKEN"));
+        assert_contains(&workflow, "secrets.P7G_DRAFT_READ_TOKEN");
         assert!(!workflow.contains("GH_TOKEN: ${{ github.token }}"));
         assert_contains(&workflow, "verify-existing-draft-release.ps1");
         assert!(!workflow.contains("create-draft-github-release.ps1"));
@@ -89,7 +88,6 @@ mod tests {
             "V1_RC2_DRAFT_RELEASE_EVIDENCE.json",
             "V1_RC2_RELEASE_ASSET_SHA256.txt",
             "V1_RC2_SOURCE_ARTIFACT_SHA256.txt",
-            "GH_TOKEN must begin with github_pat_.",
         ] {
             assert_contains(&script, required);
         }

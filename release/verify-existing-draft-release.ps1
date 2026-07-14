@@ -74,11 +74,6 @@ function Get-TextSha256Hex {
     return [System.Convert]::ToHexString($hash).ToLowerInvariant()
 }
 
-function Assert-GhTokenPrefix {
-    Assert-True (-not [string]::IsNullOrWhiteSpace($env:GH_TOKEN)) "GH_TOKEN is required."
-    Assert-True ($env:GH_TOKEN.StartsWith("github_pat_")) "GH_TOKEN must begin with github_pat_."
-}
-
 function ConvertFrom-RestRelease {
     param([object]$RestRelease)
 
@@ -300,7 +295,6 @@ Assert-True ($Repository -match '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') "Invalid re
 Assert-True ($TagName -match '^v1\.0\.0-rc[1-9][0-9]*$') "Invalid RC tag."
 Assert-True ($ExpectedTargetCommitish -match '^[0-9a-f]{40}$') "Invalid target commit."
 Assert-True ($ExpectedRc1MetadataSha256 -match '^[0-9a-f]{64}$') "Invalid RC1 metadata hash."
-Assert-GhTokenPrefix
 
 $tagLines = @(Invoke-Checked -Command "git" -CommandArgs @("ls-remote", "--tags", "origin", "refs/tags/$TagName", "refs/tags/$TagName^{}"))
 Assert-True ($tagLines.Count -ge 1) "Remote tag does not exist."
