@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feature/p8a-live-driver-install-boundary
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
