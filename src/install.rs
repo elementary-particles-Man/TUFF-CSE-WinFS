@@ -35,7 +35,9 @@ pub fn run_install_with_options(
     println!("TUFF-CSE-WinFS v1 - Starting Installation");
 
     if options.dry_run && options.live_driver_install {
-        return Err(anyhow!("--dry-run and --live-driver-install cannot be used together."));
+        return Err(anyhow!(
+            "--dry-run and --live-driver-install cannot be used together."
+        ));
     }
     if options.live_driver_install && driver_package_path.is_none() {
         return Err(anyhow!("--live-driver-install requires --driver-package."));
