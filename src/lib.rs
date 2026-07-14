@@ -129,3 +129,21 @@ pub const P7C_DRAFT_RELEASE_RESERVED_ACTIONS: &[&str] = &[
     "TPM live API",
     "KMS/HSM live integration",
 ];
+pub const P8A_LIVE_DRIVER_INSTALL_PHASE: &str = "P8A";
+pub const P8A_LIVE_DRIVER_INSTALL_BOUNDARY: &str = "Explicit Windows Driver Install Boundary";
+pub const P8A_LIVE_DRIVER_INSTALL_REQUIREMENTS: &[&str] = &[
+    "Windows host",
+    "explicit --live-driver-install flag",
+    "distribution candidate driver package",
+    "INF/SYS/CAT package state",
+    "pnputil.exe success",
+];
+pub const P8A_LIVE_DRIVER_INSTALL_EXCLUSIONS: &[&str] = &[
+    "automatic driver install",
+    "CI driver install",
+    "driver signing",
+    "service install",
+    "CSE crypto I/O",
+    "TPM live API",
+    "KMS/HSM live integration",
+];
