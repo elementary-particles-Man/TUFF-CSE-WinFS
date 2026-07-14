@@ -27,7 +27,7 @@ The manual `Verify Draft GitHub Release` workflow has only `contents: read` and 
 
 Draft releases are addressed by their fixed P7F release IDs (`353395540` for RC2 and `350514171` for RC1). The script fail-closes unless the returned tag, name, target, state, assets, and RC1 normalized hash match the fixed boundary. This avoids a draft-listing dependency while retaining read-only workflow permissions.
 
-Because GitHub's per-run `GITHUB_TOKEN` cannot read draft releases, the verification step uses the `P7G_DRAFT_READ_FINE_GRAINED_TOKEN` Actions secret. The verifier uses the credential only for repository and Actions reads, and it is never written to evidence or logs. P7H moves that secret to a fine-grained PAT with repository access restricted to TUFF-CSE-WinFS and only `contents: read` and `actions: read`.
+Because GitHub's per-run `GITHUB_TOKEN` cannot read draft releases, the verification step uses the `P7G_DRAFT_READ_TOKEN` Actions secret. The verifier uses the credential only for repository and Actions reads, and it is never written to evidence or logs.
 
 ## Evidence Artifact
 
