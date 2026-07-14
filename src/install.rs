@@ -75,10 +75,14 @@ pub fn run_install_with_options(
                 println!("  Driver Package: Distribution Ready (INF/SYS/CAT found).");
             }
             driver::DriverPackageState::BuiltUnsigned => {
-                println!("  Driver Package: Built Unsigned (INF/SYS found, CAT missing). Not ready for distribution.");
+                println!(
+                    "  Driver Package: Built Unsigned (INF/SYS found, CAT missing). Not ready for distribution."
+                );
             }
             driver::DriverPackageState::BuildReadySource => {
-                println!("  Driver Package: Build Ready Source (INF/vcxproj/sln found).");
+                println!(
+                    "  Driver Package: Build Ready Source (INF/vcxproj/sln found)."
+                );
             }
             driver::DriverPackageState::SourceSkeleton => {
                 println!("  Driver Package: Source Skeleton (INF found).");
@@ -114,7 +118,9 @@ pub fn run_install_with_options(
                 println!("Driver installation completed successfully.");
             }
             driver::DriverInstallResult::PendingDriverPhase => {
-                println!("Driver installation remains disabled. Use --live-driver-install explicitly on Windows to execute pnputil.exe.");
+                println!(
+                    "Driver installation remains disabled. Use --live-driver-install explicitly on Windows to execute pnputil.exe."
+                );
             }
             driver::DriverInstallResult::Error(message) => {
                 return Err(anyhow!(message));
