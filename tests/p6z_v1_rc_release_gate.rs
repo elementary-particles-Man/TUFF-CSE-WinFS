@@ -538,21 +538,27 @@ mod tests {
     }
 
     #[test]
-    fn v1_rc_release_gate_source_tree_stays_free_of_live_integrations() {
-        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let src_root = repo_root.join("src");
-        assert_no_forbidden_strings(
-            &src_root,
-            &[
-                "CloudKmsClient",
-                "Pkcs11Session",
-                "pnputil",
-                "AnchorProvider",
-                "RawLba",
-                "partition resize",
-                "KmsSecret",
-                "HsmSecret",
-            ],
-        );
-    }
+fn v1_rc_gate_keeps_non_p8a_live_integrations_closed() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let src_root = repo_root.join("src");
+    assert_no_forbidden_strings(
+        &src_root,
+        &[
+      "CloudKmsClient",
+      "Pkcs11Session",
+      "AnchorProvider",
+      "RawLba",
+      "partition resize",
+      "KmsSecret",
+      "HsmSecret",
+        ],
+    );
+
+    let driver_source = fs::read_to_string(src_root.join("driver.rs")).unwrap();
+    let install_source = fs::read_to_string(src_root.join("install.rs")).unwrap();
+    assert!(driver_source.contains("pnputil.exe"));
+    assert!(install_source.contains("live_driver_install"));
+    assert!(install_source.contains("install_driver_package_live"));
+    assert_eq!(tuff_cse_winfs::P8A_LIVE_DRIVER_INSTALL_PHASE, "P8A");
+}
 }
