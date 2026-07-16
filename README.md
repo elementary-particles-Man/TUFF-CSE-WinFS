@@ -299,6 +299,17 @@ P8C keeps verification read-only. The default `verify` command remains the legac
 - `verify --live-driver-status` reports explicit runtime state, observed configuration, configuration findings, and Windows error codes; non-Windows hosts fail closed.
 - `tests/p8c_read_only_driver_state_verification_boundary.rs` covers the expected path layout and source boundary.
 
+## P8D (Explicit Windows Driver Start Boundary)
+
+P8D is an explicit post-RC operational path. `start` is non-mutating by default and does not query SCM; only `start --live-driver-start` can execute `StartServiceW` on Windows.
+
+### P8D Highlights
+
+- `src/driver_control.rs` builds a pure start plan from a Verified P8C report and permits starting only from the Stopped state with no configuration findings.
+- The live path reuses P8C verification, rechecks the state on the mutation-capable service handle, calls `StartServiceW` once with zero arguments, and observes the result once.
+- Running and StartPending are observation-based results (`Running` and `StartPending`); already-running and already-starting states are reported without calling `StartServiceW`.
+- P8A install, P8B uninstall, P8C status verification, and P8D start remain separate boundaries. P8D does not implement driver stop or any service/device reconfiguration.
+
 ## Current Phase: P4A (Local Policy / Local Admin Approval Boundary)
 
 The project is currently in the **P4A** phase. This stage establishes the model and structural boundary for local administrator approvals.

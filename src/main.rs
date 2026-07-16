@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use tuff_cse_winfs::{install, uninstall, verify};
+use tuff_cse_winfs::{driver_control, driver_state, install, uninstall, verify};
 
 #[derive(Parser)]
 #[command(name = "TuffCseWinFsSetup")]
@@ -39,6 +39,12 @@ enum Commands {
         /// Explicitly query read-only Windows SCM driver status
         #[arg(long)]
         live_driver_status: bool,
+    },
+    /// Start the installed TUFF-CSE-WinFS service
+    Start {
+        /// Explicitly execute StartServiceW for the fixed driver service
+        #[arg(long)]
+        live_driver_start: bool,
     },
     /// Uninstall TUFF-CSE-WinFS v1
     Uninstall {
@@ -84,6 +90,41 @@ fn main() {
                 eprintln!("Verification failed: {}", e);
                 std::process::exit(1);
             }
+        }
+        Commands::Start { live_driver_start } => {
+            if !live_driver_start {
+                println!(
+                    "Driver start remains disabled. Service: {}. Use --live-driver-start explicitly on Windows.",
+                    driver_state::DRIVER_SERVICE_NAME
+                );
+                return;
+            }
+
+            let report = driver_state::collect_driver_state_verification_report();
+            println!("Driver Service: {}", driver_state::DRIVER_SERVICE_NAME);
+            println!(
+                "Pre-start Runtime State: {:?}",
+                report.observed_runtime_state
+            );
+            let result = driver_control::start_driver_live_from_report(&report);
+            println!("Driver Start Result: {:?}", result);
+            if let driver_control::DriverStartResult::Error {
+                windows_error_code, ..
+            } = &result
+            {
+                println!("Windows Error Code: {}", windows_error_code);
+            }
+            if matches!(
+                result,
+                driver_control::DriverStartResult::Running
+                    | driver_control::DriverStartResult::StartPending
+                    | driver_control::DriverStartResult::AlreadyRunning
+                    | driver_control::DriverStartResult::AlreadyStarting
+            ) {
+                return;
+            }
+            eprintln!("Driver start failed: {:?}", result);
+            std::process::exit(1);
         }
         Commands::Uninstall {
             force,

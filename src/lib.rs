@@ -12,6 +12,7 @@ pub mod domain_principal;
 pub mod domain_recovery;
 pub mod domain_recovery_enforcement;
 pub mod driver;
+pub mod driver_control;
 pub mod driver_state;
 pub mod enterprise_authority;
 pub mod enterprise_provider;
@@ -145,6 +146,26 @@ pub const P8C_READ_ONLY_DRIVER_STATE_EXCLUSIONS: &[&str] = &[
     "DeleteService",
     "device mutation APIs",
     "reboot APIs",
+];
+pub const P8D_LIVE_DRIVER_START_PHASE: &str = "P8D";
+pub const P8D_LIVE_DRIVER_START_BOUNDARY: &str = "Explicit Windows Driver Start Boundary";
+pub const P8D_LIVE_DRIVER_START_REQUIREMENTS: &[&str] = &[
+    "explicit start --live-driver-start flag",
+    "P8C Verified report precondition",
+    "Stopped pre-start runtime state",
+    "SC_MANAGER_CONNECT",
+    "SERVICE_START | SERVICE_QUERY_STATUS",
+    "StartServiceW with zero arguments",
+    "Running and StartPending observation results",
+];
+pub const P8D_LIVE_DRIVER_START_EXCLUSIONS: &[&str] = &[
+    "implicit start during install, verify, or uninstall",
+    "service creation or reconfiguration",
+    "driver stop",
+    "device mutation",
+    "reboot or shutdown",
+    "driver file or INF changes",
+    "release or asset changes",
 ];
 pub const P7B_PUBLIC_RELEASE_PHASE: &str = "P7B";
 pub const P7B_PUBLIC_RELEASE_BOUNDARY: &str =

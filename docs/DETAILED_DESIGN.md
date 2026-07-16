@@ -494,3 +494,13 @@ P8C keeps the default verify flow non-live and makes read-only SCM queries expli
 - `DriverRuntimeState` maps all Windows service states, preserves unknown values, and preserves Windows error codes/messages. `ERROR_SERVICE_DOES_NOT_EXIST` is represented as `NotInstalled`.
 - `DriverServiceConfiguration` and pure configuration findings are reported separately from runtime state. Path comparison normalizes quoting, slash direction, case, SystemRoot aliases, and device prefixes.
 - Non-Windows hosts fail closed for `--live-driver-status` and do not attempt SCM mutation or driver state changes.
+
+### 12.12 P8D Explicit Windows Driver Start Boundary
+
+P8D is an explicit post-RC operational path that consumes the P8C read-only verification report as its precondition.
+- `TuffCseWinFsSetup start` remains non-mutating and does not query SCM unless `--live-driver-start` is explicitly supplied.
+- The pure start plan authorizes only a `Verified` P8C report with no configuration findings and an observed `Stopped` runtime state.
+- The Windows path opens SCM with `SC_MANAGER_CONNECT`, opens only `tuffcsewinfs` with `SERVICE_START | SERVICE_QUERY_STATUS`, rechecks status on that handle, calls `StartServiceW` once with zero arguments, and observes status once afterward.
+- `Running` and `StartPending` are observation-based results. Existing Running/StartPending states return `AlreadyRunning`/`AlreadyStarting` without a start call; a successful start returns `Running` only when the post-start query observes `SERVICE_RUNNING`, otherwise `StartPending` or an explicit unexpected-state result.
+- All SCM errors preserve their Windows error codes. Non-Windows live start fails closed, and tests never start a real service or driver.
+- P8A install, P8B uninstall, P8C status, and P8D start remain separate boundaries. P8D does not add driver stop, service configuration, device mutation, reboot, release, or asset operations.
