@@ -291,11 +291,12 @@ P8B mirrors P8A for uninstall. The default path remains non-mutating, and `DiUni
 
 ## Current Phase: P8C (Read-Only Windows Driver State Verification Boundary)
 
-P8C keeps verification read-only. `verify` now queries SCM state for the fixed `tuffcsewinfs` service and compares it against the kernel-driver, demand-start, `System32\drivers\tuffcsewinfs.sys` boundary.
+P8C keeps verification read-only. The default `verify` command remains the legacy non-live verification flow and prints `Driver Status: PENDING_DRIVER_PHASE` without querying SCM. The explicit `verify --live-driver-status` path queries SCM state for the fixed `tuffcsewinfs` service and compares it against the kernel-driver, demand-start, `System32\drivers\tuffcsewinfs.sys` boundary.
 
 ### P8C Highlights
-- `src/driver_state.rs` performs read-only SCM queries only and fail-closes on non-Windows.
-- `src/verify.rs` reports the read-only driver state query before the legacy `PENDING_DRIVER_PHASE` marker.
+- `src/driver_state.rs` exposes pure runtime-state mapping and configuration evaluation, then performs read-only SCM queries only on the explicit live path.
+- `src/verify.rs` keeps `run_verify(policy_path)` as a compatibility wrapper; `run_verify_with_options` performs SCM queries only when `--live-driver-status` is supplied.
+- `verify --live-driver-status` reports explicit runtime state, observed configuration, configuration findings, and Windows error codes; non-Windows hosts fail closed.
 - `tests/p8c_read_only_driver_state_verification_boundary.rs` covers the expected path layout and source boundary.
 
 ## Current Phase: P4A (Local Policy / Local Admin Approval Boundary)

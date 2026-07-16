@@ -487,8 +487,10 @@ P8B mirrors P8A for uninstall and keeps the default path non-mutating.
 - `NeedReboot` is captured and surfaced as a distinct success-with-reboot-required result.
 - Non-Windows hosts fail closed and CI does not perform live driver uninstall.
 ### 12.11 P8C Read-Only Windows Driver State Verification Boundary
-P8C keeps verify read-only and SCM queries only.
-- `TuffCseWinFsSetup verify` queries the fixed `tuffcsewinfs` service name without any service mutation APIs.
-- Expected target is `SERVICE_KERNEL_DRIVER`, `SERVICE_DEMAND_START`, `System32\drivers\tuffcsewinfs.sys`.
-- `driver_state.rs` uses `OpenSCManagerW`, `OpenServiceW`, `QueryServiceConfigW`, and `QueryServiceStatusEx`, then preserves the legacy `PENDING_DRIVER_PHASE` marker.
-- Non-Windows hosts fail closed and do not attempt SCM mutation or driver state changes.
+P8C keeps the default verify flow non-live and makes read-only SCM queries explicit.
+- `TuffCseWinFsSetup verify` preserves the legacy non-live flow and `Driver Status: PENDING_DRIVER_PHASE`; it does not call an SCM query function.
+- `TuffCseWinFsSetup verify --live-driver-status` is the explicit read-only path. It uses `OpenSCManagerW` with `SC_MANAGER_CONNECT`, `OpenServiceW` with `SERVICE_QUERY_STATUS | SERVICE_QUERY_CONFIG`, `QueryServiceConfigW`, and `QueryServiceStatusEx`.
+- Expected configuration is `SERVICE_KERNEL_DRIVER` (including the required bit), `SERVICE_DEMAND_START`, and `System32\drivers\tuffcsewinfs.sys`.
+- `DriverRuntimeState` maps all Windows service states, preserves unknown values, and preserves Windows error codes/messages. `ERROR_SERVICE_DOES_NOT_EXIST` is represented as `NotInstalled`.
+- `DriverServiceConfiguration` and pure configuration findings are reported separately from runtime state. Path comparison normalizes quoting, slash direction, case, SystemRoot aliases, and device prefixes.
+- Non-Windows hosts fail closed for `--live-driver-status` and do not attempt SCM mutation or driver state changes.

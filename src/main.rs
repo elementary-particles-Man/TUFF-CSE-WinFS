@@ -35,6 +35,10 @@ enum Commands {
         /// Path to the installation policy JSON (optional)
         #[arg(short, long)]
         policy: Option<PathBuf>,
+
+        /// Explicitly query read-only Windows SCM driver status
+        #[arg(long)]
+        live_driver_status: bool,
     },
     /// Uninstall TUFF-CSE-WinFS v1
     Uninstall {
@@ -71,8 +75,12 @@ fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::Verify { policy } => {
-            if let Err(e) = verify::run_verify(policy) {
+        Commands::Verify {
+            policy,
+            live_driver_status,
+        } => {
+            let options = verify::VerifyOptions { live_driver_status };
+            if let Err(e) = verify::run_verify_with_options(policy, options) {
                 eprintln!("Verification failed: {}", e);
                 std::process::exit(1);
             }

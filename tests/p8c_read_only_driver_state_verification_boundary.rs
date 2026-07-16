@@ -2,10 +2,15 @@
 mod tests {
     use std::fs;
     use std::path::{Path, PathBuf};
+    use std::process::Command;
     use tuff_cse_winfs::driver_state::{
-        expected_driver_binary_path_from_system_root, DRIVER_EXPECTED_BINARY_RELATIVE_PATH,
+        evaluate_driver_service_configuration, expected_driver_binary_path_from_system_directory,
+        expected_driver_binary_path_from_system_root, map_windows_service_error,
+        map_windows_service_state, normalize_driver_binary_path, DriverConfigurationFinding,
+        DriverRuntimeState, DriverServiceConfiguration, DRIVER_EXPECTED_BINARY_RELATIVE_PATH,
         DRIVER_EXPECTED_SERVICE_TYPE, DRIVER_EXPECTED_SERVICE_TYPE_LABEL,
         DRIVER_EXPECTED_START_TYPE, DRIVER_EXPECTED_START_TYPE_LABEL, DRIVER_SERVICE_NAME,
+        ERROR_SERVICE_DOES_NOT_EXIST_CODE,
     };
 
     fn repo_root() -> PathBuf {
@@ -34,6 +39,103 @@ mod tests {
             path,
             PathBuf::from(r"C:\Windows\System32\drivers\tuffcsewinfs.sys")
         );
+    }
+
+    #[test]
+    fn system_directory_helper_does_not_duplicate_system32() {
+        assert_eq!(
+            expected_driver_binary_path_from_system_directory(Path::new(r"C:\Windows\System32")),
+            PathBuf::from(r"C:\Windows\System32\drivers\tuffcsewinfs.sys")
+        );
+    }
+
+    #[test]
+    fn maps_all_windows_service_states_and_unknown() {
+        let expected = [
+            (1, DriverRuntimeState::Stopped),
+            (2, DriverRuntimeState::StartPending),
+            (3, DriverRuntimeState::StopPending),
+            (4, DriverRuntimeState::Running),
+            (5, DriverRuntimeState::ContinuePending),
+            (6, DriverRuntimeState::PausePending),
+            (7, DriverRuntimeState::Paused),
+        ];
+        for (value, state) in expected {
+            assert_eq!(map_windows_service_state(value), state);
+        }
+        assert_eq!(
+            map_windows_service_state(99),
+            DriverRuntimeState::Unknown(99)
+        );
+    }
+
+    #[test]
+    fn missing_service_error_maps_to_not_installed() {
+        assert_eq!(
+            map_windows_service_error(ERROR_SERVICE_DOES_NOT_EXIST_CODE, "missing"),
+            DriverRuntimeState::NotInstalled
+        );
+        assert_eq!(
+            map_windows_service_error(5, "access denied"),
+            DriverRuntimeState::Error {
+                windows_error_code: 5,
+                message: "access denied".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn configuration_evaluation_accepts_kernel_driver_bit_and_expected_values() {
+        let expected = PathBuf::from(r"C:\Windows\System32\drivers\tuffcsewinfs.sys");
+        let observed = DriverServiceConfiguration {
+            service_type: DRIVER_EXPECTED_SERVICE_TYPE | 0x10,
+            start_type: DRIVER_EXPECTED_START_TYPE,
+            binary_path: Some(expected.clone()),
+        };
+        assert!(evaluate_driver_service_configuration(&observed, &expected).is_empty());
+    }
+
+    #[test]
+    fn configuration_evaluation_reports_each_mismatch() {
+        let expected = PathBuf::from(r"C:\Windows\System32\drivers\tuffcsewinfs.sys");
+        let observed = DriverServiceConfiguration {
+            service_type: 2,
+            start_type: 2,
+            binary_path: Some(PathBuf::from(r"C:\wrong.sys")),
+        };
+        let findings = evaluate_driver_service_configuration(&observed, &expected);
+        assert!(findings.iter().any(|finding| matches!(
+            finding,
+            DriverConfigurationFinding::ServiceTypeMismatch { .. }
+        )));
+        assert!(findings.iter().any(|finding| matches!(
+            finding,
+            DriverConfigurationFinding::StartTypeMismatch { .. }
+        )));
+        assert!(findings.iter().any(|finding| matches!(
+            finding,
+            DriverConfigurationFinding::BinaryPathMismatch { .. }
+        )));
+    }
+
+    #[test]
+    fn normalizes_windows_system_root_and_device_path_forms() {
+        let expected = Path::new(r"C:\Windows\System32\drivers\tuffcsewinfs.sys");
+        let forms = [
+            r"C:\Windows\System32\drivers\tuffcsewinfs.sys",
+            r#""C:\Windows\System32\drivers\tuffcsewinfs.sys""#,
+            r"%SystemRoot%\System32\drivers\tuffcsewinfs.sys",
+            r"\SystemRoot\System32\drivers\tuffcsewinfs.sys",
+            r"\??\C:\Windows\System32\drivers\tuffcsewinfs.sys",
+            r"\\?\C:\Windows\System32\drivers\tuffcsewinfs.sys",
+        ];
+        for form in forms {
+            assert_eq!(
+                normalize_driver_binary_path(Path::new(form), expected),
+                normalize_driver_binary_path(expected, expected),
+                "failed to normalize {form}"
+            );
+        }
     }
 
     #[test]
@@ -82,5 +184,36 @@ mod tests {
         assert_not_contains(&state_source, "service install");
         assert_not_contains(&state_source, "service remove");
         assert_not_contains(&state_source, "service reconfigure");
+        for forbidden in [
+            "DiInstallDriver",
+            "DiUninstallDriver",
+            "device mutation",
+            "reboot",
+        ] {
+            assert_not_contains(&state_source, forbidden);
+        }
+    }
+
+    #[test]
+    fn verify_cli_preserves_default_and_accepts_live_flag() {
+        let binary = env!("CARGO_BIN_EXE_TuffCseWinFsSetup");
+        let default_output = Command::new(binary)
+            .args(["verify"])
+            .output()
+            .expect("run default verify");
+        let default_text = String::from_utf8_lossy(&default_output.stdout);
+        assert!(default_output.status.success());
+        assert!(default_text.contains("Driver Status: PENDING_DRIVER_PHASE"));
+        assert!(!default_text.contains("Driver State Query"));
+
+        let live_output = Command::new(binary)
+            .args(["verify", "--live-driver-status"])
+            .output()
+            .expect("run live verify");
+        if cfg!(not(windows)) {
+            let live_text = String::from_utf8_lossy(&live_output.stderr);
+            assert!(!live_output.status.success());
+            assert!(live_text.contains("unsupported on non-Windows platforms"));
+        }
     }
 }

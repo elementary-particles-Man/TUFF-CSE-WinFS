@@ -119,6 +119,11 @@ pub const P8C_READ_ONLY_DRIVER_STATE_BOUNDARY: &str =
     "Read-Only Windows Driver State Verification Boundary";
 pub const P8C_READ_ONLY_DRIVER_STATE_REQUIREMENTS: &[&str] = &[
     "SCM read-only query only",
+    "explicit --live-driver-status flag",
+    "DriverRuntimeState mapping",
+    "DriverServiceConfiguration evaluation",
+    "SC_MANAGER_CONNECT",
+    "SERVICE_QUERY_STATUS | SERVICE_QUERY_CONFIG",
     "SERVICE_KERNEL_DRIVER",
     "SERVICE_DEMAND_START",
     r"System32\drivers\tuffcsewinfs.sys",
@@ -133,6 +138,13 @@ pub const P8C_READ_ONLY_DRIVER_STATE_EXCLUSIONS: &[&str] = &[
     "driver device mutation",
     "live driver install",
     "live driver uninstall",
+    "CreateService",
+    "ChangeServiceConfig",
+    "StartService",
+    "ControlService",
+    "DeleteService",
+    "device mutation APIs",
+    "reboot APIs",
 ];
 pub const P7B_PUBLIC_RELEASE_PHASE: &str = "P7B";
 pub const P7B_PUBLIC_RELEASE_BOUNDARY: &str =
